@@ -1,6 +1,6 @@
 # docs
 
-Learning notes for justabuilder. One file per topic.
+Learning notes for llmunculus. One file per topic.
 
 Style: short sentences. Plain words. No filler.
 Code comments: one line, only where the code is not obvious.

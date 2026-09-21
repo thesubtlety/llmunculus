@@ -1,4 +1,4 @@
-// justabuilder. usage: jb [-v] [model.gguf] ["task"]. no model: the one inside this file. no task: REPL. -v logs steps. --selftest [model] checks every piece.
+// llmunculus. usage: jb [-v] [model.gguf] ["task"]. no model: the one inside this file. no task: REPL. -v logs steps. --selftest [model] checks every piece.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

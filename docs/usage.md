@@ -1,10 +1,10 @@
 # usage
 
 ```
-justabuilder [-v] [-t seconds] [-a attempts] [--read-only] [--confirm] [--json] [--report DEST] [--report-if-alert] [model.gguf] ["task"]
-justabuilder --selftest [model.gguf]
-justabuilder --explore
-justabuilder --remote user@host [--explore | "task"]
+llmunculus [-v] [-t seconds] [-a attempts] [--read-only] [--confirm] [--json] [--report DEST] [--report-if-alert] [model.gguf] ["task"]
+llmunculus --selftest [model.gguf]
+llmunculus --explore
+llmunculus --remote user@host [--explore | "task"]
 ```
 
 | what | order tried |
@@ -23,11 +23,11 @@ Environment: `JB_MODEL` model path. `JB_TCCMEM=dual` two-view tcc memory for hos
 
 ```
 make build/jb                                   # the agent alone, dev tree, needs a .gguf argument
-make build/justabuilder                         # + headers, tcc runtime, the model. one 2.8 GB file
-make build/justabuilder JB_MODEL=other.gguf     # a different model inside
-make build/justabuilder-thin                    # + headers and tcc runtime, no model. 15 MB
-make build/justabuilder TASK="how much disk is free on /"      # fixed purpose: runs it on start
-make build/justabuilder SYSTEM="You are ..."                    # custom system prompt
+make build/llmunculus                         # + headers, tcc runtime, the model. one 2.8 GB file
+make build/llmunculus JB_MODEL=other.gguf     # a different model inside
+make build/llmunculus-thin                    # + headers and tcc runtime, no model. 15 MB
+make build/llmunculus TASK="how much disk is free on /"      # fixed purpose: runs it on start
+make build/llmunculus SYSTEM="You are ..."                    # custom system prompt
 ```
 
 ## reports and exit status
@@ -36,11 +36,11 @@ make build/justabuilder SYSTEM="You are ..."                    # custom system 
 
 ## remote
 
-`justabuilder --remote user@host [--explore | "task"]` copies this binary to the host, runs it there, and prints the output. Nothing installed on the remote. Use the thin build for `--explore`. `JB_SSH` and `JB_SCP` set ports and keys. A probe can also reach out with `ssh host 'cmd'` via jb_run for a single remote fact. See 14-remote.md.
+`llmunculus --remote user@host [--explore | "task"]` copies this binary to the host, runs it there, and prints the output. Nothing installed on the remote. Use the thin build for `--explore`. `JB_SSH` and `JB_SCP` set ports and keys. A probe can also reach out with `ssh host 'cmd'` via jb_run for a single remote fact. See 14-remote.md.
 
 ## explore
 
-`justabuilder --explore` prints a concise host profile with no model: identity, hardware, disk, what is running, network and connections, user accounts with dates, key config, package count. About two seconds. See 13-explore.md.
+`llmunculus --explore` prints a concise host profile with no model: identity, hardware, disk, what is running, network and connections, user accounts with dates, key config, package count. About two seconds. See 13-explore.md.
 
 ## sizes, and outputting a file
 
@@ -62,7 +62,7 @@ So to output a file, or any large result: have a DO program write it straight to
 
 ## helpers and examples
 
-Programs may `#include <jb.h>`: read and write files, run a command, split lines, key lookup, first number, directory listing. `examples/*.c` are shown to the model one at a time, the closest by question wording. Add your own: a `// q: <question>` first line, under 40 lines, then `make build/justabuilder`. See 12-helpers.md.
+Programs may `#include <jb.h>`: read and write files, run a command, split lines, key lookup, first number, directory listing. `examples/*.c` are shown to the model one at a time, the closest by question wording. Add your own: a `// q: <question>` first line, under 40 lines, then `make build/llmunculus`. See 12-helpers.md.
 
 ## windows
 

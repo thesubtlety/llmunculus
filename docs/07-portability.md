@@ -16,7 +16,7 @@ Results:
 
 **Wine: inconclusive.** Even `build/hello`, 600 KB, spins in syscalls under Wine 9.0 and never prints. cosmo's Windows startup and this Wine do not agree, so Wine cannot tell us anything about our code. The Windows path needs a real Windows box.
 
-**Windows, real box: ALL PASS.** `justabuilder.exe --selftest` on a Windows machine passed all twelve lines, model included, 8.0 tok/s. The crash line came back as `signal=11` with cosmo's own message. The host line read `windows x86_64`. If that machine is Windows on ARM, Windows ran our x86_64 half under its emulation layer. cosmo has no native Windows arm64 target, so on such a box emulation is the only option with this toolchain and the speed cost is inherent.
+**Windows, real box: ALL PASS.** `llmunculus.exe --selftest` on a Windows machine passed all twelve lines, model included, 8.0 tok/s. The crash line came back as `signal=11` with cosmo's own message. The host line read `windows x86_64`. If that machine is Windows on ARM, Windows ran our x86_64 half under its emulation layer. cosmo has no native Windows arm64 target, so on such a box emulation is the only option with this toolchain and the speed cost is inherent.
 
 **macOS, Apple Silicon: ALL PASS.** `--selftest` on an M-series Mac, `darwin arm64`, 12 cores: every line passed in the default tcc memory layout, so Apple's page rules accept read-execute code pages made with `mprotect`. The dual mode was not needed. Model load 1.9 s, generation 25.8 tok/s on the CPU, four times this box. CPU only: a cosmo build has no Metal, so all four threads pin while the model generates. That is expected and it is the difference from Metal-backed apps. See plan.md, later.
 
@@ -34,10 +34,10 @@ The self-test prints the mode on its `host` line and, if `tcc hello` fails in th
 
 ## the one command
 
-Copy `build/justabuilder` to the machine. Then:
+Copy `build/llmunculus` to the machine. Then:
 
 ```
-./justabuilder --selftest
+./llmunculus --selftest
 ```
 
 Expected, in order:
@@ -87,7 +87,7 @@ What might break, in order of likelihood:
 
 ### Windows
 
-Rename the file to `justabuilder.exe`. Windows picks the loader by extension. Run it from cmd or PowerShell. No shell or MSYS needed for the program itself.
+Rename the file to `llmunculus.exe`. Windows picks the loader by extension. Run it from cmd or PowerShell. No shell or MSYS needed for the program itself.
 
 What might break:
 
@@ -98,7 +98,7 @@ What might break:
 
 ## what the self-test does not cover
 
-- A real task. Run `./justabuilder "how many CPUs does this machine have"` after ALL PASS.
+- A real task. Run `./llmunculus "how many CPUs does this machine have"` after ALL PASS.
 - Memory split. `-v` prints it on Linux only. On Mac use Activity Monitor: real memory should be well under the file size.
 - Speed. The `generate` line is 13 tokens. Enough to see the order of magnitude.
 

@@ -108,7 +108,7 @@ int report_send(const char *dest, const char *json, char *err, size_t errcap) {
         if (!f) { snprintf(err, errcap, "%s: %s", dest + 5, strerror(errno)); return -1; }
         fprintf(f, "%s\n", json); fclose(f); return 0;
     }
-    if (!strcmp(dest, "syslog")) { openlog("justabuilder", LOG_PID, LOG_USER); syslog(LOG_INFO, "%s", json); closelog(); return 0; }
+    if (!strcmp(dest, "syslog")) { openlog("llmunculus", LOG_PID, LOG_USER); syslog(LOG_INFO, "%s", json); closelog(); return 0; }
     if (!strncmp(dest, "https://", 8)) {
         char resp[4096]; int code = jb_https("POST", dest, json, "application/json", resp, sizeof resp);   // native TLS, no curl
         if (code / 100 == 2) return 0;

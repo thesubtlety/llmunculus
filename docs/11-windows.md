@@ -44,7 +44,7 @@ On any other OS every one returns -1 with `ENOSYS`. The model only hears about t
 
 ## how to verify
 
-On a Windows box: `justabuilder.exe --selftest`. The `win32 wrappers` line compiles a program that prints the user, elevation and the state of the Winmgmt service. Then a task: `justabuilder.exe "which services are stopped that are set to start automatically"`, which should land in tier 1, and `"am I running elevated"`, which should land in tier 2.
+On a Windows box: `llmunculus.exe --selftest`. The `win32 wrappers` line compiles a program that prints the user, elevation and the state of the Winmgmt service. Then a task: `llmunculus.exe "which services are stopped that are set to start automatically"`, which should land in tier 1, and `"am I running elevated"`, which should land in tier 2.
 
 ## what broke
 

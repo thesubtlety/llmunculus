@@ -7,7 +7,7 @@ Status: built and tested through a local loopback. No sshd here for a real round
 **1. Send the tool and run it there.** `jb --remote user@host [--explore | "task"]`. The tool scp's this executable to `/tmp` on the host, runs it there, prints the output, and deletes it. Nothing is installed on the remote. Because the binary is one portable static file, this works on any host the APE runs on.
 
 ```
-justabuilder-thin --remote root@server --explore
+llmunculus-thin --remote root@server --explore
 ```
 
 profiles a remote box with no setup on it beyond ssh access. Use the thin build for this: `--explore` needs no model and the thin binary is 14 MB, so the copy is quick. A model task on the remote needs a model there, so either send the full 2.8 GB build or set `JB_MODEL` to a model already on the host.
@@ -15,7 +15,7 @@ profiles a remote box with no setup on it beyond ssh access. Use the thin build 
 The transport is overridable, for ports, keys, and jump hosts:
 
 ```
-JB_SSH='ssh -p 2222 -i ~/.ssh/ops' JB_SCP='scp -P 2222 -i ~/.ssh/ops' justabuilder-thin --remote ops@host --explore
+JB_SSH='ssh -p 2222 -i ~/.ssh/ops' JB_SCP='scp -P 2222 -i ~/.ssh/ops' llmunculus-thin --remote ops@host --explore
 ```
 
 Tested with loopback stand-ins for scp and ssh that copy and run locally: the binary is placed, run with the given args, and cleaned up, and the profile comes back. The real ssh path is standard and unrun here only because this box has no sshd.
@@ -46,7 +46,7 @@ Both take `-Credential` in a domain. Neither needs anything installed on the tar
 `--remote`'s transport is `JB_SSH` and `JB_SCP`, and they are just command prefixes, so the bootstrap does not have to be ssh. On Windows-to-Windows you can copy over the admin share and run over WinRM by pointing them at PowerShell:
 
 ```
-JB_SCP='<copy to \\host\c$\Windows\Temp via a wrapper>' JB_SSH='<Invoke-Command wrapper>' justabuilder --remote host --explore
+JB_SCP='<copy to \\host\c$\Windows\Temp via a wrapper>' JB_SSH='<Invoke-Command wrapper>' llmunculus --remote host --explore
 ```
 
 The same override that adds an ssh port or key also swaps the whole transport. That is why `--remote` did not hard-code ssh.

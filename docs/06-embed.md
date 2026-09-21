@@ -1,6 +1,6 @@
 # 06 embed
 
-Status: done. `build/justabuilder` is one 2.8 GB file. Model, headers, tcc runtime, agent. No other files needed.
+Status: done. `build/llmunculus` is one 2.8 GB file. Model, headers, tcc runtime, agent. No other files needed.
 
 ## what is in the file
 
@@ -9,7 +9,7 @@ Status: done. `build/justabuilder` is one 2.8 GB file. Model, headers, tcc runti
 [ zip: include/** 171 headers, tcc/lib/x86_64/* , tcc/lib/arm64/* , model.gguf 2.79 GB ]
 ```
 
-`tools/embed.py` adds the members to the APE with Python's zipfile. `make build/justabuilder` copies `build/jb` and runs it. Seven seconds, mostly the copy.
+`tools/embed.py` adds the members to the APE with Python's zipfile. `make build/llmunculus` copies `build/jb` and runs it. Seven seconds, mostly the copy.
 
 ## two ways to read a member
 
@@ -65,9 +65,9 @@ cosmo has this code inside its `/zip` support. Writing it again was the point.
 ## commands
 
 ```
-make build/justabuilder                   # cp build/jb, embed headers, tcc runtime, model
-./build/justabuilder "how many CPUs"      # embedded model
-./build/justabuilder -v models/x.gguf ""  # a .gguf argument still overrides, for dev
-unzip -l build/justabuilder | tail -3
-./build/justabuilder --run < prog.c       # the child alone, reading /zip
+make build/llmunculus                   # cp build/jb, embed headers, tcc runtime, model
+./build/llmunculus "how many CPUs"      # embedded model
+./build/llmunculus -v models/x.gguf ""  # a .gguf argument still overrides, for dev
+unzip -l build/llmunculus | tail -3
+./build/llmunculus --run < prog.c       # the child alone, reading /zip
 ```

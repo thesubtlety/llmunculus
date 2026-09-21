@@ -51,7 +51,7 @@ int jb_https(const char *method, const char *url, const char *body, const char *
     mbedtls_entropy_init(&ent); mbedtls_ctr_drbg_init(&drbg); mbedtls_x509_crt_init(&ca);
     int rc = -1, status = -1;
 
-    if (mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &ent, (const unsigned char *)"justabuilder", 12)) goto done;
+    if (mbedtls_ctr_drbg_seed(&drbg, mbedtls_entropy_func, &ent, (const unsigned char *)"llmunculus", 12)) goto done;
     net.fd = tls_connect(host, port, 15000);   // 15s connect timeout, no hang on a dead host
     if (net.fd < 0) goto done;
     if (mbedtls_ssl_config_defaults(&conf, MBEDTLS_SSL_IS_CLIENT, MBEDTLS_SSL_TRANSPORT_STREAM, MBEDTLS_SSL_PRESET_DEFAULT)) goto done;

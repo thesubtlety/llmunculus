@@ -28,7 +28,7 @@ So the tool delivers the report itself, in code written once. The model never to
 |---|---|
 | `stdout` | print it |
 | `file:PATH` | append one line |
-| `syslog` | LOG_INFO, ident justabuilder |
+| `syslog` | LOG_INFO, ident llmunculus |
 | `http://...` | POST as application/json, our own plaintext client |
 | `https://...` | POST over TLS with mbedtls, certificate verified against the system CA bundle. no curl. see 15-tls.md |
 
@@ -39,7 +39,7 @@ Delivery runs in the agent process, not the child, so `--read-only` does not aff
 A task whose first word is is, are, does, has, can, should, will, did, was, were gets one more step after the answer: a grammar-bound `yes`, `no` or `unknown` from the facts. The exit status follows: 0 for no or not a yes/no question, 2 for yes, 1 when a step failed. cron and any monitor can act on that without parsing prose.
 
 ```
-justabuilder --report-if-alert --report https://hooks.example/disk "is the free disk space on / below 10 percent?"
+llmunculus --report-if-alert --report https://hooks.example/disk "is the free disk space on / below 10 percent?"
 ```
 
 sends nothing on a quiet day and a document plus exit 2 when it is not.

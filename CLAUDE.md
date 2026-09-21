@@ -1,4 +1,4 @@
-# justabuilder
+# llmunculus
 
 Learning project. See readme.md and docs/.
 

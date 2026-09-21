@@ -1,4 +1,4 @@
-# justabuilder
+# llmunculus
 
 One portable executable with a tiny LLM inside. Give it a task in plain English;
 it writes small C programs, compiles and runs them to learn what it needs, and
@@ -11,11 +11,11 @@ A learning project, built milestone by milestone. Each step is written up in
 ## What it does
 
 ```
-justabuilder --explore                 # a concise host profile, no model needed
-justabuilder "how much disk is free"   # ask; it writes a C probe and answers
-justabuilder "append the load average to health.log"        # act
-justabuilder --report syslog "is / over 90% full"           # report + exit code
-justabuilder --remote user@host --explore                   # profile a box over ssh
+llmunculus --explore                 # a concise host profile, no model needed
+llmunculus "how much disk is free"   # ask; it writes a C probe and answers
+llmunculus "append the load average to health.log"        # act
+llmunculus --report syslog "is / over 90% full"           # report + exit code
+llmunculus --remote user@host --explore                   # profile a box over ssh
 ```
 
 Also: `--read-only` (refuse writes), `--json`, `--selftest`, a REPL with no args.
@@ -44,11 +44,11 @@ curl -sSL -o models/qwen2.5-coder-3b-instruct-q6_k.gguf \
   https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q6_k.gguf
 
 # 4. build (llama.cpp is ~7 min the first time)
-make build/justabuilder        # 2.8 GB, model inside
-make build/justabuilder-thin   # 15 MB, bring your own model
+make build/llmunculus        # 2.8 GB, model inside
+make build/llmunculus-thin   # 15 MB, bring your own model
 ```
 
-Verify on any machine: copy the binary over and run `./justabuilder --selftest`.
+Verify on any machine: copy the binary over and run `./llmunculus --selftest`.
 
 ## How it works
 

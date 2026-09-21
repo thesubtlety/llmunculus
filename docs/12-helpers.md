@@ -69,7 +69,7 @@ Where it still goes wrong: phrasing borrowed from another example's domain. "wha
 The debug switch:
 
 ```
-justabuilder --example "how many zombie processes are there" "is nginx running"
+llmunculus --example "how many zombie processes are there" "is nginx running"
 ```
 
 prints the pick for each question and loads no model.
@@ -126,7 +126,7 @@ The honest caveat: those examples were written for those questions. This is a te
 
 Deliberately not covered: hardware sensors. Thin by choice: the Windows and macOS rows, until a box runs them.
 
-The gaps that remain are a pick list, not a plan: when a task fails on one of your boxes, the fix is one file with a `// q:` line, thirty lines, run once through `justabuilder --run < file.c` to prove it, then `make build/justabuilder`.
+The gaps that remain are a pick list, not a plan: when a task fails on one of your boxes, the fix is one file with a `// q:` line, thirty lines, run once through `llmunculus --run < file.c` to prove it, then `make build/llmunculus`.
 
 ## on questions the library has never seen
 
@@ -137,7 +137,7 @@ Two questions with no example written for them. Both failed.
 
 So the plumbing works and the matching was naive. Two changes, no model runs:
 
-1. A shared word counts 1 divided by the number of examples that contain it. "size" and "bytes" are in many, "passwd" in one. The total must clear 0.6, or no example is shown. `justabuilder --example "<question>"` prints the pick without loading a model.
+1. A shared word counts 1 divided by the number of examples that contain it. "size" and "bytes" are in many, "passwd" in one. The total must clear 0.6, or no example is shown. `llmunculus --example "<question>"` prints the pick without loading a model.
 2. The library gained shapes, not questions: walk a directory and sum sizes, filter lines by a suffix, count entries by a field, the newest file in a directory, a service state, RAM from `/proc/meminfo`. A shape example carries over to questions with different nouns.
 
 After that, eight questions and their picks:

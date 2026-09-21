@@ -8,6 +8,6 @@ int main(void) {
 #else
     const char *arch = "aarch64";
 #endif
-    printf("hello from justabuilder\nos: %s  arch: %s\n", os, arch);
+    printf("hello from llmunculus\nos: %s  arch: %s\n", os, arch);
     return 0;
 }

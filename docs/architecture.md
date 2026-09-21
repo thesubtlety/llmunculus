@@ -73,4 +73,4 @@ Child side: `tcc_new`, `-nostdlib -nostdinc`, force-include `jb_predefs.h` and `
 [ zip store: model.gguf  include/**  tcc/lib/x86_64/*  tcc/lib/arm64/* ]
 ```
 
-Headers and tcc objects are read through `/zip/`, which copies, fine for small files. The model is found with `embed_find`, then a FILE* on our own exe is seeked to it and handed to llama.cpp, which maps the whole file from 0. File-backed, no copy. Member is stored and page aligned. `make build/justabuilder` produces the file.
+Headers and tcc objects are read through `/zip/`, which copies, fine for small files. The model is found with `embed_find`, then a FILE* on our own exe is seeked to it and handed to llama.cpp, which maps the whole file from 0. File-backed, no copy. Member is stored and page aligned. `make build/llmunculus` produces the file.

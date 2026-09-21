@@ -64,7 +64,7 @@ build/jb: $(JB_SRC) $(wildcard src/*.h) build/llama/libllama.a build/tcc/libtcc.
 #   SYSTEM="..."         replace the system prompt
 JB_MODEL ?= models/qwen2.5-coder-3b-instruct-q6_k.gguf
 EMBED_EXTRA = $(if $(TASK),task=build/gen/task.txt) $(if $(SYSTEM),system=build/gen/system.txt)
-build/justabuilder: build/jb tools/embed.py build/gen/tcc/consts.c FORCE
+build/llmunculus: build/jb tools/embed.py build/gen/tcc/consts.c FORCE
 	@mkdir -p build/gen
 	$(if $(TASK),printf '%s\n' "$(TASK)" > build/gen/task.txt)
 	$(if $(SYSTEM),printf '%s\n' "$(SYSTEM)" > build/gen/system.txt)
@@ -72,7 +72,7 @@ build/justabuilder: build/jb tools/embed.py build/gen/tcc/consts.c FORCE
 	python3 tools/embed.py $@ $(JB_MODEL) $(EMBED_EXTRA)
 
 # same, no model inside. 15 MB. run with a .gguf argument, $$JB_MODEL, or model.gguf beside it.
-build/justabuilder-thin: build/jb tools/embed.py build/gen/tcc/consts.c FORCE
+build/llmunculus-thin: build/jb tools/embed.py build/gen/tcc/consts.c FORCE
 	cp build/jb $@
 	python3 tools/embed.py $@ - $(EMBED_EXTRA)
 FORCE:

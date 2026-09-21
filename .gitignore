@@ -1,0 +1,13 @@
+# build products and fetched deps (rebuilt/downloaded, never committed)
+build/
+models/
+third_party/
+*.dbg
+*.elf
+# runtime artifacts examples/tasks drop in the working dir
+report.log
+processes.txt
+jbtest/
+*.itsvcs
+output.txt
+x.txt

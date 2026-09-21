@@ -1,0 +1,63 @@
+diff --git a/tccrun.c b/tccrun.c
+index 1003ea5..addd698 100644
+--- a/tccrun.c
++++ b/tccrun.c
+@@ -113,11 +113,15 @@ static void win64_del_function_table(void *);
+ # define CONFIG_RUNMEM_VIRTUALALLOC 1
+ #endif
+ 
++/* justabuilder: JB_TCCMEM=dual selects the two-view layout at runtime, for hosts that refuse
++   writable+executable pages. code is written through the rw view and run through the rx view. */
++static int rt_dual;
+ static int rt_mem(TCCState *s1, int size)
+ {
+     void *ptr;
+     int ptr_diff = 0;
+-#ifdef CONFIG_SELINUX
++    { const char *m = getenv("JB_TCCMEM"); rt_dual = m && !strcmp(m, "dual"); }
++    if (rt_dual) {
+     /* Using mmap instead of malloc */
+     void *prw;
+     char tmpfname[] = "/tmp/.tccrunXXXXXX";
+@@ -134,7 +138,8 @@ static int rt_mem(TCCState *s1, int size)
+     ptr_diff = (char*)prw - (char*)ptr; /* = size; */
+     //printf("map %p %p %p\n", ptr, prw, (void*)ptr_diff);
+     size *= 2;
+-#elif CONFIG_RUNMEM_VIRTUALALLOC
++    } else
++#if CONFIG_RUNMEM_VIRTUALALLOC
+     /* always page-aligned */
+     ptr = VirtualAlloc(NULL, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+     if (!ptr)
+@@ -198,15 +203,17 @@ ST_FUNC void tcc_run_free(TCCState *s1)
+     win64_del_function_table(s1->run_function_table);
+ #endif
+     size = s1->run_size;
+-#ifdef CONFIG_SELINUX
++    if (rt_dual) {
+     munmap(ptr, size);
+-#elif CONFIG_RUNMEM_VIRTUALALLOC
++    } else {
++#if CONFIG_RUNMEM_VIRTUALALLOC
+     VirtualFree(ptr, size, MEM_RELEASE);
+ #else
+     /* unprotect memory to make it usable for malloc again */
+     protect_pages((void*)PAGEALIGN(ptr), size - PAGESIZE, 2 /*rw*/);
+     tcc_free(ptr);
+ #endif
++    }
+ }
+ 
+ #define RT_EXIT_ZERO 0xE0E00E0E /* passed from longjmp instead of '0' */
+@@ -410,10 +417,8 @@ redo:
+         if (copy == 2) { /* set permissions */
+             if (n == 0) /* no data  */
+                 continue;
+-#ifdef CONFIG_SELINUX
+-            if (k == 0) /* SHF_EXECINSTR has its own mapping */
++            if (rt_dual && k == 0) /* SHF_EXECINSTR has its own mapping */
+                 continue;
+-#endif
+             f = k;
+             if (f >= CONFIG_RUNMEM_RO) {
+                 if (f != 0)

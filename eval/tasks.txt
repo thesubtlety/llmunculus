@@ -1,0 +1,22 @@
+# id :: task for the agent :: shell that prints the expected value on this host :: check
+# check: exact | num:PCT (a number in the answer within PCT of expected, also tried in KB/MB/GB) | has (substring, case-insensitive)
+cpus :: how many CPUs does this machine have :: nproc :: exact
+ram :: how much RAM does this machine have in bytes :: awk '/MemTotal/{print $2*1024}' /proc/meminfo :: num:2
+swap :: how much swap space is configured in bytes :: awk '/SwapTotal/{print $2*1024}' /proc/meminfo :: num:2
+diskfree :: how many bytes are free on the root filesystem :: df --output=avail -B1 / | tail -1; echo $(( $(stat -f -c %f /) * $(stat -f -c %S /) )) :: num:3
+user :: what is my user name :: id -un :: has
+home :: what is my home directory :: echo $HOME :: has
+hostname :: what is the hostname of this machine :: hostname :: has
+kernel :: what kernel version is running :: uname -r :: has
+uptime :: how many seconds has this machine been up :: cut -d. -f1 /proc/uptime :: num:5
+procs :: how many processes are running right now :: ls /proc | grep -c '^[0-9]' :: num:15
+mounts :: how many filesystems are mounted :: wc -l < /proc/mounts :: num:15
+etcfiles :: how many entries are in the /etc directory :: ls -A /etc | wc -l :: num:5
+passwdsz :: how many bytes is the file /etc/passwd :: stat -c %s /etc/passwd :: exact
+passwdln :: how many lines does /etc/passwd have :: wc -l < /etc/passwd :: exact
+pagesize :: what is the memory page size in bytes :: getconf PAGESIZE :: exact
+pidmax :: what is the maximum process id on this system :: cat /proc/sys/kernel/pid_max :: exact
+osname :: which Linux distribution is this :: . /etc/os-release; echo $NAME :: has
+year :: what year is it according to the system clock :: date +%Y :: has
+ifaces :: how many network interfaces does this machine have :: ls /sys/class/net | wc -l :: num:0
+cpumodel :: what is the CPU model name :: grep -m1 'model name' /proc/cpuinfo | sed 's/.*: //' | awk '{print $2}' :: has

@@ -1,0 +1,8 @@
+10-identity
+20-hardware
+30-disk
+40-running
+50-network
+60-users
+70-config
+80-software

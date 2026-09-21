@@ -22,7 +22,8 @@ Plus two worked examples. Measure their token cost. Cut if over budget.
 | CODE | one fenced C block | code |
 | FIX | one fenced C block | code |
 | OBSERVE | `FACT: <answer only>` or `FIX: <what to change>`, 80 chars | observe |
-| ANSWER | one line | answer |
+| ANSWER | one line, not starting with D/N/< | answer |
+| VERDICT | one word: yes, no, unknown (yes/no tasks only; sets exit code) | yes/no |
 
 Each step is a new generation. Input is: system prompt, facts so far, and the current NEED. Old code and output are not shown once a FACT exists.
 

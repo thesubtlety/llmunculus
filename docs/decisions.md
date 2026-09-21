@@ -5,7 +5,7 @@
 | model | Qwen2.5-Coder-3B-Instruct, GGUF | best small coder. Fits 4 GB at any quant |
 | quant | Q6_K | M8: Q8_0 same accuracy, 38% slower. Q4_0 slower through retries. accuracy is bounded by meaning errors, not bits |
 | context | 8192, code steps up to 800 tokens | room for a real program. KV at 8k is 300 MB |
-| engine | llama.cpp behind a small C interface | works now. Swap for our own at M10 |
+| engine | llama.cpp behind a small C interface | works now. Swap for our own at M11 (optional) |
 | model storage | zip member of the APE, page aligned, read by seeking our own exe | never touches disk. one file. see 06-embed.md |
 | compiler | libtcc, embedded | 200 KB. No host toolchain. tcc_run means no linker |
 | run mode | child process runs the C code | a crash in model code must not kill the agent |
@@ -20,7 +20,6 @@
 | steps | one generation per step, each with its own grammar | short outputs. Easy to debug. Fewer wasted tokens |
 | grammar order | sample first, check the pick, mask only on reject | grammar-first was 3x slower on a 151k vocab |
 | system prompt | includes OS and arch from uname | without it the 3B wrote BSD code on Linux |
-| context | n_ctx 8192, one live context per session | KV for 3B is about 36 KB per token. 8k is about 300 MB |
 | retries | temperature +0.25 per retry, identical program refused | at 0.3 a retry is a replay |
 | plan prompt | one example NEED, backticks banned by grammar | small models copy examples and ignore prohibitions |
 | answer | one line | given slots the model fills every slot with a variant |
@@ -66,7 +65,7 @@
 |---|---|
 | llama.cpp load from memory | solved. `llama_model_load_from_file_ptr` with the FILE* seeked to the member. gguf offsets are absolute |
 | /zip mmap copies | solved. headers go through /zip. the model is loaded by seeking a FILE* to its offset, llama maps the whole exe from 0. no patch |
-| tcc on Apple Silicon | build sets CONFIG_RUNMEM_RO=1, rx code and rw data, never rwx. same layout as tcc's own Mac port. untested here |
+| tcc on Apple Silicon | build sets CONFIG_RUNMEM_RO=1, rx code and rw data, never rwx. verified: --selftest passes on an M-series Mac |
 | tcc headers | solved. cosmo's headers work under tcc with two force-includes. 171 files, under 1 MB |
 | Windows spawn | no fork. Re-exec self with `--run`. Same path on all three OSes |
 | cosmo plus llama.cpp | upstream built clean with cosmocc at df03399. No patches needed. Hand-written mk/llama.mk |

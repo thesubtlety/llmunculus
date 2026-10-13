@@ -3,6 +3,16 @@ CC     = $(COSMO)/bin/cosmocc
 CFLAGS = -O2 -mcosmo -Wall -Wno-format-truncation
 .SECONDARY:   # keep pattern-rule intermediates: the host tccs and generated wrappers
 
+# a missing vendored source makes make reject every pattern rule that needs it and report "No rule to make target".
+# say what is actually missing. README "Build", steps 1 and 2.
+NEED = $(COSMO)/bin/cosmocc third_party/llama.cpp/include/llama.h third_party/tinycc/tcc.c third_party/mbedtls/include/mbedtls/ssl.h
+MISSING = $(strip $(foreach f,$(NEED),$(if $(wildcard $(f)),,$(f))))
+ifneq ($(MISSING),)
+ifeq ($(filter clean,$(MAKECMDGOALS)),)
+$(error missing: $(MISSING). fetch the toolchain and the three sources first, see README "Build")
+endif
+endif
+
 build/hello: src/hello.c
 	$(CC) $(CFLAGS) -o $@ $<
 

@@ -59,16 +59,45 @@ static char *jb_run(const char *cmd) {
     for (size_t k; (k = fread(s + n, 1, cap - n - 1, p)) > 0;) { n += k; if (n + 1 >= cap) s = realloc(s, cap *= 2); }
     pclose(p); s[n] = 0; return s;
 }
+/* append " -i <path>" for every private key found in ~/.ssh on THIS machine. a private key is a regular file with a
+   sibling ".pub", or whose first line says PRIVATE KEY; .pub, known_hosts, config and authorized_keys are skipped.
+   paths are absolute (no ~), so they survive a bare system() too. returns bytes written. */
+static size_t jb_ssh_find_keys(char *out, size_t cap) {
+    const char *h = getenv("HOME"); if (!h || !*h) { struct passwd *p = getpwuid(getuid()); h = p ? p->pw_dir : 0; }
+    if (!h) return 0;
+    char dir[1024]; snprintf(dir, sizeof dir, "%s/.ssh", h);
+    DIR *d = opendir(dir); if (!d) return 0;
+    size_t w = 0; struct dirent *e;
+    while ((e = readdir(d))) {
+        const char *n = e->d_name; size_t ln = strlen(n);
+        if (n[0] == '.') continue;
+        if (ln >= 4 && !strcmp(n + ln - 4, ".pub")) continue;
+        if (!strcmp(n, "config") || !strcmp(n, "authorized_keys") || !strcmp(n, "environment") || strstr(n, "known_hosts")) continue;
+        char path[1200]; snprintf(path, sizeof path, "%s/%s", dir, n);
+        struct stat st; if (stat(path, &st) || !S_ISREG(st.st_mode)) continue;
+        char pub[1300]; snprintf(pub, sizeof pub, "%s.pub", path);
+        int key = access(pub, F_OK) == 0;
+        if (!key) { FILE *f = fopen(path, "r"); if (f) { char l[128]; if (fgets(l, sizeof l, f) && strstr(l, "PRIVATE KEY")) key = 1; fclose(f); } }
+        if (!key) continue;
+        if (w + strlen(path) + 5 >= cap) break;
+        w += snprintf(out + w, cap - w, " -i %s", path);
+    }
+    closedir(d);
+    return w;
+}
 /* run cmd on userhost ("user@host") over ssh and return its output, like jb_run but on another box.
    cmd is quoted for the remote shell here; jb_run quotes the whole line for the local shell. BatchMode fails fast if keys are not set up.
-   $JB_SSH replaces the whole ssh command. $JB_SSH_KEYS is space-separated key files, each tried in order with IdentitiesOnly so only
-   these are offered (keeps the count under the server's MaxAuthTries). Example: JB_SSH_KEYS='~/.ssh/a ~/.ssh/b'. */
+   $JB_SSH replaces the whole ssh command. $JB_SSH_KEYS is space-separated key files (or "auto" to try every key in ~/.ssh here),
+   each offered with IdentitiesOnly so only these are tried, in order. "auto" is the one to use when the key names are not known. */
 static char *jb_ssh(const char *userhost, const char *cmd) {
-    const char *ssh = getenv("JB_SSH"); char base[2048];
+    const char *ssh = getenv("JB_SSH"); char base[4096];
     if (!ssh || !*ssh) {
         size_t b = snprintf(base, sizeof base, "ssh -o BatchMode=yes -o ConnectTimeout=8");
         const char *keys = getenv("JB_SSH_KEYS");
-        if (keys && *keys) {
+        if (keys && (!strcmp(keys, "auto") || !strcmp(keys, "*"))) {
+            b += snprintf(base + b, sizeof base - b, " -o IdentitiesOnly=yes");
+            b += jb_ssh_find_keys(base + b, sizeof base - b);
+        } else if (keys && *keys) {
             b += snprintf(base + b, sizeof base - b, " -o IdentitiesOnly=yes");
             char tmp[1024]; snprintf(tmp, sizeof tmp, "%s", keys);
             for (char *t = strtok(tmp, " "); t && b < sizeof base - 64; t = strtok(NULL, " ")) b += snprintf(base + b, sizeof base - b, " -i %s", t);

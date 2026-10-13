@@ -85,3 +85,4 @@
 | --remote multiple keys | JB_SSH_KEYS adds each as `-i` to the ssh/scp transport with IdentitiesOnly; `~` expanded locally first because the binary's system() is cosmo's shell and rejects a bare `~` |
 | forward keys to the remote agent | JB_SSH_KEYS and JB_SSH are carried to the remote invocation, so a task that ssh-es onward uses the same keys; `~` left literal there for the remote's ssh to expand |
 | no fan-out for a failed action | a clear action (leading verb) whose one-step DO fails reports "not done" instead of decomposing into NEEDs it cannot answer ($HOME, addresses); the whole task, not plan1's lossy restatement, is handed to solve so the right example matches |
+| JB_SSH_KEYS=auto | iterate keys whose names are unknown: scan ~/.ssh for private keys (sibling .pub, or PRIVATE KEY header) and offer each with IdentitiesOnly. runs on the connecting machine; "auto" forwards literally across --remote so the target enumerates its own keys |

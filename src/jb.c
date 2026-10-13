@@ -15,6 +15,8 @@ static char *jb_slurp(const char *p){FILE *f=fopen(p,"rb");if(!f)return NULL;fse
 #include <cosmo.h>
 #include <signal.h>
 #include <sys/stat.h>
+#include <dirent.h>
+#include <pwd.h>
 
 // linux only: anonymous memory is ours, file-backed is the model paged in from this executable
 static void mem_report(const char *when) {
@@ -105,6 +107,31 @@ static const char *untilde(const char *p, char *buf, size_t cap) {
     return p;
 }
 
+// append " -i <abs path>" for every private key in the local ~/.ssh (sibling .pub, or first line says PRIVATE KEY). for JB_SSH_KEYS=auto.
+static size_t find_keys(char *out, size_t cap) {
+    const char *h = getenv("HOME"); if (!h || !*h) { struct passwd *p = getpwuid(getuid()); h = p ? p->pw_dir : 0; }
+    if (!h) return 0;
+    char dir[1024]; snprintf(dir, sizeof dir, "%s/.ssh", h);
+    DIR *d = opendir(dir); if (!d) return 0;
+    size_t w = 0; struct dirent *e;
+    while ((e = readdir(d))) {
+        const char *n = e->d_name; size_t ln = strlen(n);
+        if (n[0] == '.') continue;
+        if (ln >= 4 && !strcmp(n + ln - 4, ".pub")) continue;
+        if (!strcmp(n, "config") || !strcmp(n, "authorized_keys") || !strcmp(n, "environment") || strstr(n, "known_hosts")) continue;
+        char path[1200]; snprintf(path, sizeof path, "%s/%s", dir, n);
+        struct stat st; if (stat(path, &st) || !S_ISREG(st.st_mode)) continue;
+        char pub[1300]; snprintf(pub, sizeof pub, "%s.pub", path);
+        int key = access(pub, F_OK) == 0;
+        if (!key) { FILE *f = fopen(path, "r"); if (f) { char l[128]; if (fgets(l, sizeof l, f) && strstr(l, "PRIVATE KEY")) key = 1; fclose(f); } }
+        if (!key) continue;
+        if (w + strlen(path) + 5 >= cap) break;
+        w += snprintf(out + w, cap - w, " -i %s", path);
+    }
+    closedir(d);
+    return w;
+}
+
 // wrap s in single quotes for the local shell, so whatever quoting it already carries reaches ssh untouched.
 static char *sq(const char *s, char *out, size_t cap) {
     size_t k = 0; if (k < cap) out[k++] = '\'';
@@ -123,15 +150,19 @@ static int remote_main(int argc, char **argv) {
     const char *host = argv[2];
     const char *ssh = getenv("JB_SSH"), *scp = getenv("JB_SCP");
     // one authentication for the whole run: the first connection stays open as a master for the others. not on Windows OpenSSH.
-    char mux[160] = "", keys[512] = "", sshd[768], scpd[768];
+    char mux[160] = "", keys[3072] = "", sshd[3300], scpd[3300];
     if (!IsWindows()) snprintf(mux, sizeof mux, " -o ControlMaster=auto -o ControlPath=/tmp/jb-ssh-%%r@%%h:%%p -o ControlPersist=60");
-    // JB_SSH_KEYS: space-separated key files, each -i in order, IdentitiesOnly so only these are offered (under the server's MaxAuthTries)
+    // JB_SSH_KEYS: space-separated key files, or "auto" to try every key in the local ~/.ssh. each -i in order, IdentitiesOnly so only
+    // these are offered (under the server's MaxAuthTries). these keys are on THIS machine, for the hop to the remote host.
     const char *kl = getenv("JB_SSH_KEYS");
     if (kl && *kl) {
         size_t n = snprintf(keys, sizeof keys, " -o IdentitiesOnly=yes");
-        char tmp[400]; snprintf(tmp, sizeof tmp, "%s", kl);
-        for (char *t = strtok(tmp, " "); t && n < sizeof keys - 80; t = strtok(NULL, " ")) {
-            char kb[256]; n += snprintf(keys + n, sizeof keys - n, " -i %s", untilde(t, kb, sizeof kb));   // local key files; ~ expanded for system()
+        if (!strcmp(kl, "auto") || !strcmp(kl, "*")) n += find_keys(keys + n, sizeof keys - n);
+        else {
+            char tmp[400]; snprintf(tmp, sizeof tmp, "%s", kl);
+            for (char *t = strtok(tmp, " "); t && n < sizeof keys - 80; t = strtok(NULL, " ")) {
+                char kb[256]; n += snprintf(keys + n, sizeof keys - n, " -i %s", untilde(t, kb, sizeof kb));   // local key files; ~ expanded for system()
+            }
         }
     }
     if (!ssh) { snprintf(sshd, sizeof sshd, "ssh%s%s", mux, keys); ssh = sshd; }

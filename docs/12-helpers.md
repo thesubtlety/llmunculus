@@ -170,3 +170,9 @@ The lesson stands either way: a library this size covers what it covers. Coverag
 
 Two examples use it: `ssh_run.c` (run a command on a host as a user) and `ssh_write_file.c` (write a file in a remote home). They exist because the matcher had nothing for "ssh as a user and do X" and picked unrelated shapes. Verified: the 3B now reproduces the `jb_ssh` program for "ssh to box as alice and write hello." A vague compound task can still over-plan, the known small-model limit; a single concrete action is the reliable path.
 
+`$JB_SSH` replaces the whole ssh command, so a non-default key is `JB_SSH='ssh -i ~/.ssh/key -o BatchMode=yes -o ConnectTimeout=8'`. Same variable `--remote` already uses for its transport, so setting it steers both the same way. This is the identity story: the agent never guesses a key path, it uses the ssh config, the agent, or `$JB_SSH`.
+
+When the matched example is an ssh one, the DO code step gets one extra instruction: reach the host with `jb_ssh` (not a raw `ssh`), do not add `-i` or guess a key, and use `$HOME` on the remote, not a guessed absolute path. Before this a 3B would write `ssh -i ~/.ssh/<made-up> alice@host 'echo ... > /Users/alice/greet.txt'` and nothing got created.
+
+A 3B often tags a write or send as `NEED`, not `DO`, which skipped the clean action path and buried the result in an "also learned" footer. `action_task()` is a cheap leading-verb check (ssh, write, send, save, delete, ...): on a one-step plan it flips a mislabeled `NEED` to `DO`. Read questions start with how/what/which, so they never match. Verified end to end with a stand-in ssh: `ssh to alice@localhost and write hello to greet.txt in their home` now plans one step, calls `jb_ssh` with `$HOME`, writes the file, and prints `done.`
+

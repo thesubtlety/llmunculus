@@ -49,6 +49,16 @@ static int yes_no_task(const char *t) {
     return strstr(lo, " yes or no") != NULL;
 }
 
+// does the task start with an outward, state-changing verb? a 3B often tags a write or send as NEED; this flips it back to DO
+// so the action path (a clean "done." line) runs. leading-word only, like yes_no_task: a read verb (list, show, count) is not here.
+static int action_task(const char *t) {
+    static const char *w[] = { "ssh ", "write ", "create ", "send ", "post ", "upload ", "download ", "delete ", "remove ",
+                               "append ", "save ", "copy ", "move ", "set ", "enable ", "disable ", "start ", "stop ", "restart ", "kill ", 0 };
+    char lo[64]; size_t i; for (i = 0; i < sizeof lo - 1 && t[i]; i++) lo[i] = t[i] >= 'A' && t[i] <= 'Z' ? t[i] + 32 : t[i]; lo[i] = 0;
+    for (int k = 0; w[k]; k++) if (!strncmp(lo, w[k], strlen(w[k]))) return 1;
+    return 0;
+}
+
 // facts list too long: ask the model to merge it. keeps every number, drops repeats and chatter.
 static void squash_facts(ctx *c) {
     char user[8192], out[4096];
@@ -218,16 +228,20 @@ static int solve(ctx *c, char kind, const char *need, char *fact, size_t cap) {
     char block[5120] = "";
     if (ex) snprintf(block, sizeof block, "A working program for the similar request \"%s\":\n```c\n%s```\n", exq, ex);
     int win = c->o->host && strstr(c->o->host, "windows") != NULL;
+    // reaching another host is the one place the model invents a raw ssh with a guessed key and an absolute remote path. steer it to the helper.
+    const char *ssh_steer = (exq && strstr(exq, "ssh")) ?
+        "Reach the host with jb_ssh, not a raw ssh command: it already uses the ssh config and keys. Do not add -i or guess a key path. "
+        "On the remote use $HOME, never a guessed absolute home path. " : "";
     if (kind == 'D')
     snprintf(user, sizeof user,
              "Known facts:\n%s\n%sWrite one C99 program that does this: %s\n"
              "Rules: one file, only libc and <jb.h>, no input. " HELPERS
              "Do exactly that and nothing else, following the example above if there is one. Use C calls for files, directories, "
              "sockets and syslog: to send, open a socket and write to it, do not just connect. "
-             "Where only a command does it, run it with jb_run and check its exit status. "
+             "%sWhere only a command does it, run it with jb_run and check its exit status. "
              "Then print one line saying what it actually did, with paths and counts.%s "
              "Exit 0 on success. On failure print the reason to stderr and exit 1. Code only.",
-             *c->facts ? c->facts : "- none yet\n", block, need,
+             *c->facts ? c->facts : "- none yet\n", block, need, ssh_steer,
              win ? " On Windows: jb_win_service_control(name,\"start\"|\"stop\") from <jb_win.h>, else powershell -NoProfile -Command." : "");
     else
     snprintf(user, sizeof user,
@@ -361,6 +375,7 @@ int loop_task(engine *e, session *ss, const char *task, const loop_opts *o, char
              have ? "Known facts:\n" : "", have ? ss->facts : "", task);
     if (step(&c, "plan1", user, G_PLAN_ONE, o->temp, out, sizeof out) < 0) return -1;
     n = parse_plan(out, needs, kinds, &done);
+    if (n == 1 && kinds[0] == 'N' && action_task(task)) kinds[0] = 'D';   // a mislabeled write/send: run it as the action it is
     if (n == 1) {
         char fact[512];
         if (solve(&c, kinds[0], needs[0], fact, sizeof fact)) return -1;
@@ -378,6 +393,7 @@ int loop_task(engine *e, session *ss, const char *task, const loop_opts *o, char
              "'NEED: <question>' learns something from the machine. 'DO: <action>' changes something or reports somewhere. "
              "A DO may compute what it needs itself, so one DO is often the whole task. "
              "Each step must fit in one small C program. Ask only about the machine, never about the tool or C itself. "
+             "Connecting to a host and acting there is one DO: do not add a NEED for a path, home directory or address the DO can find itself with $HOME on the remote. "
              "Reading a value and sending it, or reading and writing, is one DO. Examples: NEED: How many lines in /var/log/syslog mention error? "
              "DO: Read ITSHARE_ENDPOINT from ~/.itsvcs and POST it to 203.0.113.10:8080%s",
              *ss->history ? "Earlier:\n" : "", ss->history,

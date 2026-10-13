@@ -30,7 +30,7 @@ JB_SSH='ssh -p 2222 -i ~/.ssh/ops' JB_SCP='scp -P 2222 -i ~/.ssh/ops' llmunculus
 
 Tested with loopback stand-ins for scp and ssh that copy and run locally: the binary is placed, run with the given args, and cleaned up, and the profile comes back. The real ssh path is standard and unrun here only because this box has no sshd.
 
-**2. Let a probe reach out over ssh.** For a single remote question without copying anything, a probe runs `ssh host 'command'` through `jb_run`. `examples/remote_uname.c` and `remote_disk.c` show the shape, with `BatchMode=yes` so a host without key access fails fast instead of hanging on a prompt. The model picks these for "the remote host over ssh" phrasings.
+**2. Let a probe reach out over ssh.** For a single remote question without copying anything, a probe runs `ssh host 'command'` through `jb_ssh` (which calls `jb_run`). `examples/remote_uname.c`, `remote_disk.c`, `ssh_run.c` and `ssh_write_file.c` show the shape, with `BatchMode=yes` so a host without key access fails fast instead of hanging on a prompt. The model picks these for "the remote host over ssh" phrasings. A non-default key goes through the same `$JB_SSH` as the transport: `JB_SSH='ssh -i ~/.ssh/key -o BatchMode=yes -o ConnectTimeout=8'`. The agent never guesses a key path; the generated program uses `jb_ssh` and `$HOME` on the remote.
 
 ## which to use
 

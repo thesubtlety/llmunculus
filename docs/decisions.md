@@ -77,3 +77,6 @@
 | cosmo plus llama.cpp | upstream built clean with cosmocc at df03399. No patches needed. Hand-written mk/llama.mk |
 | CPU dispatch | cosmo builds one binary for many CPUs. Need runtime AVX2 / AVX512 pick. llamafile does this |
 | speed | 3B on a 4-core box is 5 to 8 tok/s. A task with 5 programs is minutes. Keep every step short |
+| jb_ssh identity | `$JB_SSH` overrides the ssh command (same var as `--remote`), so a non-default key works without the model guessing a key path |
+| ssh DO steer | when an ssh example matches, the code step is told to use jb_ssh + `$HOME`, not a raw ssh with a guessed key or absolute remote path |
+| action_task flip | a 3B often tags a write/send as NEED; a leading-verb check flips a one-step NEED to DO so the clean "done." path runs. read questions (how/what/which) never match |

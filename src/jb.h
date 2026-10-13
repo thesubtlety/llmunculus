@@ -60,9 +60,11 @@ static char *jb_run(const char *cmd) {
     pclose(p); s[n] = 0; return s;
 }
 /* run cmd on userhost ("user@host") over ssh and return its output, like jb_run but on another box.
-   cmd is quoted for the remote shell here; jb_run quotes the whole line for the local shell. BatchMode fails fast if keys are not set up. */
+   cmd is quoted for the remote shell here; jb_run quotes the whole line for the local shell. BatchMode fails fast if keys are not set up.
+   $JB_SSH replaces the whole ssh command, so a non-default key is JB_SSH='ssh -i ~/.ssh/key -o BatchMode=yes -o ConnectTimeout=8'. */
 static char *jb_ssh(const char *userhost, const char *cmd) {
-    char line[4096]; size_t k = snprintf(line, sizeof line, "ssh -o BatchMode=yes -o ConnectTimeout=8 %s '", userhost);
+    const char *ssh = getenv("JB_SSH"); if (!ssh || !*ssh) ssh = "ssh -o BatchMode=yes -o ConnectTimeout=8";
+    char line[4096]; size_t k = snprintf(line, sizeof line, "%s %s '", ssh, userhost);
     for (const char *c = cmd; *c && k < sizeof line - 8; c++) { if (*c == '\'') { memcpy(line + k, "'\\''", 4); k += 4; } else line[k++] = *c; }
     line[k++] = '\'';
     line[k] = 0;

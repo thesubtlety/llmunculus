@@ -32,7 +32,9 @@ $(OUT)/libllama.a: $(OBJS)
 	$(COSMO)/bin/cosmoar rcs $@ $^
 
 # CMake outputs, stubbed. and one wrapper per arch-specific source, since cosmocc compiles every file for both arches.
-$(OBJS): | $(GEN)/ggml/ggml-version.h $(GEN)/ggml/llama-version.h
+# the stubs are order-only prerequisites of the pattern rules. not an explicit `$(OBJS): | stubs` line: a target with a
+# rule and no recipe counts as made even when it does not exist, which hid a missing source until cosmoar failed.
+VERSION_H = $(GEN)/ggml/ggml-version.h $(GEN)/ggml/llama-version.h
 $(GEN)/ggml/ggml-version.h $(GEN)/ggml/llama-version.h:
 	@mkdir -p $(GEN)/ggml
 	n=$$(basename $@ -version.h | tr a-z A-Z); printf '#pragma once\n#define %s_VERSION "cosmo"\n#define %s_COMMIT  "%s"\n' $$n $$n "$$(git -C $(LL) rev-parse --short HEAD 2>/dev/null || echo unknown)" > $@
@@ -40,11 +42,11 @@ $(GEN)/ggml-cpu/arch/%: $(G)/ggml-cpu/arch/x86/% $(G)/ggml-cpu/arch/arm/%
 	@mkdir -p $(@D)
 	printf '#if defined(__x86_64__)\n#include "arch/x86/%s"\n#elif defined(__aarch64__)\n#include "arch/arm/%s"\n#endif\n' $* $* > $@
 
-$(OUT)/%.c.o: %.c
+$(OUT)/%.c.o: %.c | $(VERSION_H)
 	@mkdir -p $(dir $@)
 	$(CC) $(LCC) -c -o $@ $<
 
-$(OUT)/%.cpp.o: %.cpp
+$(OUT)/%.cpp.o: %.cpp | $(VERSION_H)
 	@mkdir -p $(dir $@)
 	$(CXX) $(LCXX) -c -o $@ $<
 

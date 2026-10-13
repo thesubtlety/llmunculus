@@ -1,7 +1,9 @@
 COSMO ?= $(HOME)/.local/opt/cosmocc
 CC     = $(COSMO)/bin/cosmocc
 CFLAGS = -O2 -mcosmo -Wall -Wno-format-truncation
-.SECONDARY:   # keep pattern-rule intermediates: the host tccs and generated wrappers
+# keep these pattern-rule intermediates. not a bare .SECONDARY: that makes every target intermediate, and make
+# silently skips an intermediate it cannot build, so a missing source surfaced as "cosmoar: no such file".
+.SECONDARY: build/tcc/host/x86_64-tcc build/tcc/host/arm64-tcc build/gen/ggml-cpu/arch/quants.c build/gen/ggml-cpu/arch/repack.cpp
 
 # a missing vendored source makes make reject every pattern rule that needs it and report "No rule to make target".
 # say what is actually missing. README "Build", steps 1 and 2.
@@ -11,6 +13,17 @@ ifneq ($(MISSING),)
 ifeq ($(filter clean,$(MAKECMDGOALS)),)
 $(error missing: $(MISSING). fetch the toolchain and the three sources first, see README "Build")
 endif
+endif
+# mk/llama.mk lists sources by hand and the tcc patch targets one tree. other commits may not build. README pins these.
+LLAMA_PIN = df03399
+TCC_PIN   = 0fb5430
+LLAMA_AT = $(shell git -C third_party/llama.cpp rev-parse --short=7 HEAD 2>/dev/null)
+TCC_AT   = $(shell git -C third_party/tinycc rev-parse --short=7 HEAD 2>/dev/null)
+ifneq ($(LLAMA_AT),$(LLAMA_PIN))
+$(warning third_party/llama.cpp is at $(LLAMA_AT), tested at $(LLAMA_PIN). if the build breaks, check out the pin)
+endif
+ifneq ($(TCC_AT),$(TCC_PIN))
+$(warning third_party/tinycc is at $(TCC_AT), tested at $(TCC_PIN). if the build breaks, check out the pin)
 endif
 
 build/hello: src/hello.c

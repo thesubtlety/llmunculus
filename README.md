@@ -33,9 +33,9 @@ curl -sSL -o c.zip https://cosmo.zip/pub/cosmocc/cosmocc.zip && unzip -q c.zip &
 mkdir -p extra && curl -sSL -o extra/zip https://cosmo.zip/pub/cosmos/bin/zip && chmod +x extra/zip
 cd -
 
-# 2. dependencies -> third_party/
-git clone --depth 1 https://github.com/ggml-org/llama.cpp third_party/llama.cpp
-git clone --depth 1 https://repo.or.cz/tinycc.git         third_party/tinycc
+# 2. dependencies -> third_party/  (pinned: mk/llama.mk lists sources by hand, other commits may not build)
+git clone https://github.com/ggml-org/llama.cpp third_party/llama.cpp && git -C third_party/llama.cpp checkout -q df03399
+git clone https://repo.or.cz/tinycc.git         third_party/tinycc    && git -C third_party/tinycc    checkout -q 0fb5430
 curl -sSL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.2/mbedtls-3.6.2.tar.bz2 \
   | tar xj && mv mbedtls-3.6.2 third_party/mbedtls
 

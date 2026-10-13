@@ -13,7 +13,14 @@
 | `patches/tcc-dual-mem.patch` | `build/tcc/.patched` stamp, `grep -q rt_dual` guard | idempotent. libtcc.a depends on the stamp |
 | `build/gen/ggml/*-version.h`, `build/gen/ggml-cpu/arch/*` | printf | CMake outputs and the per-arch wrappers from 01-inference.md |
 
-`.SECONDARY:` keeps the pattern-rule intermediates, else make deletes the host tccs after each build and redoes them next time.
+`.SECONDARY:` names the four pattern-rule intermediates, else make deletes the host tccs after each build and redoes them next time.
+
+Two make traps met on the way, both of which turn a missing source into a late, misleading error:
+
+- A target with a rule but no recipe counts as made even when the file does not exist. That is how `FORCE:` works. An explicit `$(OBJS): | stubs` line to attach order-only prerequisites gave every object such a rule, so a source missing from a newer llama.cpp clone surfaced as `cosmoar: iqp.cpp.o: no such file`. Order-only prerequisites now sit on the pattern rules.
+- A bare `.SECONDARY:` makes every target intermediate, and make does not fail on an intermediate it cannot build.
+
+The llama.cpp source list is written by hand, so the README pins the commit it was written against, and the Makefile warns when the checkout is elsewhere.
 
 The runtime objects a fresh build produces differ byte for byte from the hand-built ones, in the source path tcc records in each object. The x86_64 set passes the self-test. The arm64 set is built the same way and is aarch64 ELF, first run on real hardware pending.
 

@@ -59,6 +59,15 @@ static char *jb_run(const char *cmd) {
     for (size_t k; (k = fread(s + n, 1, cap - n - 1, p)) > 0;) { n += k; if (n + 1 >= cap) s = realloc(s, cap *= 2); }
     pclose(p); s[n] = 0; return s;
 }
+/* run cmd on userhost ("user@host") over ssh and return its output, like jb_run but on another box.
+   cmd is quoted for the remote shell here; jb_run quotes the whole line for the local shell. BatchMode fails fast if keys are not set up. */
+static char *jb_ssh(const char *userhost, const char *cmd) {
+    char line[4096]; size_t k = snprintf(line, sizeof line, "ssh -o BatchMode=yes -o ConnectTimeout=8 %s '", userhost);
+    for (const char *c = cmd; *c && k < sizeof line - 8; c++) { if (*c == '\'') { memcpy(line + k, "'\\''", 4); k += 4; } else line[k++] = *c; }
+    line[k++] = '\'';
+    line[k] = 0;
+    return jb_run(line);
+}
 /* split text into lines. *n gets the count. lines[i] are NUL terminated */
 static char **jb_lines(const char *text, int *n) {
     char *copy = strdup(text ? text : ""); int cap = 64, k = 0; char **v = malloc(cap * sizeof *v);

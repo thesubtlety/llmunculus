@@ -58,7 +58,7 @@
 | tls | mbedtls vendored and compiled in, jb_https for https, no curl | the toolchain ships no TLS. one function, verifies against the system CA bundle |
 | verdicts | yes/no tasks get a one-word grammar-bound verdict and exit 2 on yes | monitors act on exit codes |
 | windows depth | PowerShell first, six Win32 wrappers second, no COM | tcc code cannot call the Microsoft ABI. wrappers can. WMI is one popen away |
-| helpers | jb.h, twelve static functions, shipped with the headers | scaffolding is where a 3B loses track. less of it |
+| helpers | jb.h static functions, shipped with the headers, incl. jb_ssh (the remote twin of jb_run) | scaffolding is where a 3B loses track. less of it. a helper that collapses a multi-shell pattern removes a place to get quoting wrong |
 | examples | one per code step, chosen by word overlap, placed before the task, no function list beside it | examples beat instructions. the function list was the attractor |
 | explore | --explore runs profile/*.c, one probe per section, each branching on jb_os() | a profile asks known questions. deterministic beats the model. one file per section, per-platform |
 | remote | --remote scp's the binary and runs it on the host; probes can also ssh out | the single portable binary is the feature. no install on the remote. transport overridable |

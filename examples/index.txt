@@ -70,6 +70,8 @@ send_tcp
 service_running
 services_enabled
 set_config
+ssh_run
+ssh_write_file
 sysctl_value
 tail_file
 timers

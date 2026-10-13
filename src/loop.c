@@ -198,7 +198,7 @@ const char *best_example(const char *need, const char **q) {
 
 #define HELPERS "Helpers in <jb.h>: char *jb_read_file(path); int jb_write_file(path,text,append); char *jb_run(cmd); " \
     "char **jb_lines(text,&n); char *jb_line_starting(text,prefix); int jb_count_lines_with(text,needle); char *jb_kv(text,key,sep); " \
-    "long long jb_number_in(s); char *jb_trim(s); char **jb_dir_list(path,&n); int jb_exists(path); long long jb_file_size(path). "
+    "long long jb_number_in(s); char *jb_trim(s); char **jb_dir_list(path,&n); int jb_exists(path); long long jb_file_size(path); char *jb_ssh(userhost,cmd). "
 
 // --confirm: show the program, ask. no terminal means no.
 static int confirmed(const char *code) {

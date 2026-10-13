@@ -164,3 +164,9 @@ The lesson stands either way: a library this size covers what it covers. Coverag
 
 "is / over 90% full" chose the `save the full process list` example: it shared only the word "full," and the disk examples, phrased "disk space free," shared nothing with that wording. A bad example derails the program. Fix was an example phrased like the question: `disk_full.c`, `// q: is the root filesystem / over 90 percent full`. The lesson is that an example's `// q:` has to carry the words people actually use for the task, threshold words here (full, percent, over), not just the mechanism.
 
+## jb_ssh and the composite examples
+
+`jb_ssh(userhost, cmd)` runs a command on another box, the remote twin of `jb_run`. It quotes `cmd` for the remote shell, then hands the whole `ssh ... 'cmd'` line to `jb_run`, which quotes it for the local shell, so the two shell levels are handled in one place instead of in every program. `BatchMode=yes` and `ConnectTimeout=8` make it fail fast when keys are not set up. `--read-only` refuses it, since it ends in `popen`.
+
+Two examples use it: `ssh_run.c` (run a command on a host as a user) and `ssh_write_file.c` (write a file in a remote home). They exist because the matcher had nothing for "ssh as a user and do X" and picked unrelated shapes. Verified: the 3B now reproduces the `jb_ssh` program for "ssh to box as alice and write hello." A vague compound task can still over-plan, the known small-model limit; a single concrete action is the reliable path.
+

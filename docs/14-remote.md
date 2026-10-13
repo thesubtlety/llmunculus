@@ -66,3 +66,8 @@ The same override that adds an ssh port or key also swaps the whole transport. T
 - Both need ssh access already working: keys, or an agent. The tool does not handle passwords or host-key prompts; `BatchMode=yes` in the probes makes that a fast failure.
 - `--remote` copies to `/tmp` and assumes the remote can execute it there. A noexec `/tmp` would need `JB_SSH`/a different path, not yet a flag.
 - The real scp/ssh transport is unrun here. First real use will teach something, as every first run has.
+
+## the task was being shredded
+
+A remote task runs inside two shells: the local one that `system()` starts, and the remote one `ssh` hands the command to. Each task argument was single-quoted for the remote shell, then the whole command was single-quoted again for the local shell. Single quotes do not nest, so the local shell split the task into loose words and the remote agent received only the first one. "use last and ssh identities to ssh as alice ..." arrived as the single word "use." Fix: build the remote command with its remote-shell quoting, then quote that whole string once more for the local shell, escaping every quote it contains. Verified the agent now receives the task as one argument, apostrophes included.
+

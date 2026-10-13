@@ -98,6 +98,14 @@ static const char *local_model_path(void) {
 
 static int sh(const char *cmd) { if (verbose) fprintf(stderr, "[remote] %s\n", cmd); return system(cmd); }
 
+// wrap s in single quotes for the local shell, so whatever quoting it already carries reaches ssh untouched.
+static char *sq(const char *s, char *out, size_t cap) {
+    size_t k = 0; if (k < cap) out[k++] = '\'';
+    for (; *s && k < cap - 5; s++) { if (*s == '\'') { memcpy(out + k, "'\\''", 4); k += 4; } else out[k++] = *s; }
+    if (k < cap) out[k++] = '\'';
+    out[k < cap ? k : cap - 1] = 0; return out;
+}
+
 // copy this binary to a host, run it there, print the output. no install on the remote. a model task uses, in order:
 // the copy we sent before (same size), a model another tool left on the host, else our local pick sent once to ~/.cache/llmunculus.
 static int remote_main(int argc, char **argv) {
@@ -137,7 +145,8 @@ static int remote_main(int argc, char **argv) {
     char self[1024]; snprintf(self, sizeof self, "%s", GetProgramExecutableName());
     char tmp[64]; snprintf(tmp, sizeof tmp, "/tmp/jb-remote-%d", (int)getpid());
     char cmd[8192];
-    snprintf(cmd, sizeof cmd, "%s '%s' '%s:%s'", scp, self, host, tmp);
+    char q1[1100], q2[1200];
+    snprintf(cmd, sizeof cmd, "%s %s %s:%s", scp, sq(self, q1, sizeof q1), host, tmp);
     if (sh(cmd)) { fprintf(stderr, "copy to %s failed\n", host); return 1; }
 
     const char *rmodel = "$HOME/.cache/llmunculus/model.gguf";
@@ -155,7 +164,7 @@ static int remote_main(int argc, char **argv) {
         int copy = *local && (send || (!reuse && !found));
         if (copy) {
             fprintf(stderr, "[remote] sending %s (%.1f GB) to %s:~/.cache/llmunculus/model.gguf, once\n", local, want / 1e9, host);
-            snprintf(cmd, sizeof cmd, "%s '%s' '%s:.cache/llmunculus/model.gguf'", scp, local, host);
+            snprintf(cmd, sizeof cmd, "%s %s %s:.cache/llmunculus/model.gguf", scp, sq(local, q1, sizeof q1), host);
             if (sh(cmd)) { fprintf(stderr, "model copy to %s failed\n", host); return 1; }
             snprintf(menv, sizeof menv, "JB_MODEL=%s ", rmodel);
         } else if (reuse || (have > 0 && !found)) {
@@ -167,7 +176,8 @@ static int remote_main(int argc, char **argv) {
             return 1;
         } else if (verbose) fprintf(stderr, "[remote] %s has a model of its own\n", host);
     }
-    snprintf(cmd, sizeof cmd, "%s %s 'chmod +x %s && %s%s%s; rm -f %s'", ssh, host, tmp, menv, tmp, ra, tmp);   // run and clean up
+    char rcmd[7200]; snprintf(rcmd, sizeof rcmd, "chmod +x %s && %s%s%s; rm -f %s", tmp, menv, tmp, ra, tmp);   // ra already remote-quoted
+    snprintf(cmd, sizeof cmd, "%s %s %s", ssh, host, sq(rcmd, q2, sizeof q2));   // quote once more for the local shell
     int rc = sh(cmd);
     return rc ? 1 : 0;
 }

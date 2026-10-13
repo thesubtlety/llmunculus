@@ -20,6 +20,7 @@ default_gateway
 dir_sizes
 dir_total_size
 disk_free
+disk_full
 disk_per_mount
 dns_resolve
 download_file

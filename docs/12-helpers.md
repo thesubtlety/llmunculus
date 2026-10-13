@@ -159,3 +159,8 @@ The lesson stands either way: a library this size covers what it covers. Coverag
 
 - `jb_kv` and the tab before the colon, above.
 - The `[example]` log line printed the first 60 characters of code, all `#include <jb.h>`, useless. It prints the example's question now.
+
+## a matcher miss worth recording
+
+"is / over 90% full" chose the `save the full process list` example: it shared only the word "full," and the disk examples, phrased "disk space free," shared nothing with that wording. A bad example derails the program. Fix was an example phrased like the question: `disk_full.c`, `// q: is the root filesystem / over 90 percent full`. The lesson is that an example's `// q:` has to carry the words people actually use for the task, threshold words here (full, percent, over), not just the mechanism.
+

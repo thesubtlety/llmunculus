@@ -10,7 +10,17 @@ Status: built and tested through a local loopback. No sshd here for a real round
 llmunculus-thin --remote root@server --explore
 ```
 
-profiles a remote box with no setup on it beyond ssh access. Use the thin build for this: `--explore` needs no model and the thin binary is 14 MB, so the copy is quick. A model task on the remote needs a model there, so either send the full 2.8 GB build or set `JB_MODEL` to a model already on the host.
+profiles a remote box with no setup on it beyond ssh access. Use the thin build for this: `--explore` needs no model and the thin binary is 14 MB, so the copy is quick.
+
+A model task on the remote needs a model there. The thin build sorts that out: it reuses a model the host already has, and otherwise sends one. In order:
+
+1. A copy sent on an earlier run, matched by size, at `~/.cache/llmunculus/model.gguf`. Reused, nothing sent.
+2. A model another tool already downloaded on the host, found by running `--list-models` there. Used in place, nothing sent.
+3. The local pick, sent once to `~/.cache/llmunculus/model.gguf`. The local pick follows normal precedence, so `--use-model X` or `JB_MODEL` chooses what to send. `--send-model` forces this even when the host has its own.
+
+So the health-check case is one command: `llmunculus-thin --remote ops@box --use-model qwen "is / over 90% full"`. The model is copied the first time and reused after. The 2.8 GB full build still works too, carrying its own model and skipping all of this.
+
+**ssh credentials.** `--remote` runs your own `ssh` and `scp`, so `~/.ssh/config`, keys, agent and known_hosts apply exactly as from the shell. A password prompt reaches your terminal. The steps share one connection (`ControlMaster=auto`, a socket in `/tmp`, persisted 60 s), so a password is asked once, not per step. Connection sharing is off on Windows OpenSSH, which has no control sockets.
 
 The transport is overridable, for ports, keys, and jump hosts:
 
@@ -28,7 +38,7 @@ Tested with loopback stand-ins for scp and ssh that copy and run locally: the bi
 |---|---|
 | a full profile of a remote box | `--remote host --explore` |
 | one remote fact, ssh keys set up | a task like "get the kernel of host X over ssh" |
-| a model task run on the remote | `--remote host "task"` with a model on the remote |
+| a model task run on the remote | `--remote host "task"`: a model there is reused, else one is sent once |
 
 The first is deterministic and complete. The second is a single command and needs no copy. The third is the heavy one.
 

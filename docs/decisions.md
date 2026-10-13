@@ -39,7 +39,10 @@
 | timeout | -t flag, default 5 s, one automatic retry at 4x | a big tree walk is slow and still right |
 | model precedence | command line, $JB_MODEL, model.gguf beside the file, embedded, then a scan of other tools' caches | an on-disk model costs nothing, the embedded one is never paged in. the scan lets the 15 MB thin build run with no download |
 | model scan | ollama, LM Studio, HF hub, llama.cpp, GPT4All, Jan, ~/models, ~/Downloads. GGUF magic, chat template required, under 70% of RAM. coder and instruct score highest, 1.5 to 4.5 GB preferred | the loop needs chat turns and was tuned on a 3B coder. see 17-discover.md |
-| model pick cache | one line in $TMPDIR/llmunculus-model.<uid>, read only if we own it, rechecked, `--models` rewrites it | runs are temp runs. the uid name and owner check keep another user from choosing the GGUF we parse |
+| model pick cache | one line in $TMPDIR/llmunculus-model.<uid>, read only if we own it, rechecked, `--list-models` rewrites it | runs are temp runs. the uid name and owner check keep another user from choosing the GGUF we parse |
+| choosing a model | the default is the top found one. `--use-model X` takes its list number, a name/path fragment, or a path | listing and choosing are separate verbs. `--list-models` shows, `--use-model` picks |
+| remote model | reuse the host's: an earlier copy by size, then another tool's via remote `--list-models`, else send the local pick once to ~/.cache/llmunculus/model.gguf | a 2-4 GB copy per run is the thing to avoid. copy once, reuse by size. the full build carries its own and skips it |
+| remote ssh | run the user's own ssh/scp, share one connection with ControlMaster | keys, agent, config and a single password prompt come for free. no credential handling of our own |
 | fixed-purpose builds | TASK= and SYSTEM= embed task.txt and system.txt | same binary, one more zip member |
 | actions | DO steps, no gate, `--confirm` opt-in | the tool runs from cron |
 | commands | `system` and `popen` allowed, C calls preferred | an IT tool needs systemctl and docker. C calls port to all three OSes, commands do not |

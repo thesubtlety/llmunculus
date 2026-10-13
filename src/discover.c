@@ -151,6 +151,15 @@ static int ours(const char *path) {
     struct stat st; return !stat(path, &st) && S_ISREG(st.st_mode) && (IsWindows() || st.st_uid == getuid());
 }
 
+int discover_pick(const char *x, char *out, size_t cap) {
+    if (access(x, R_OK) == 0) { snprintf(out, cap, "%s", x); return 0; }
+    model_cand c[MAXC]; int n = discover_models(c, MAXC);
+    char *end; long i = strtol(x, &end, 10);
+    if (*x && !*end) { if (i < 1 || i > n) return -1; snprintf(out, cap, "%s", c[i - 1].path); return 0; }
+    for (int k = 0; k < n; k++) if (has(c[k].name, x) || has(c[k].path, x)) { snprintf(out, cap, "%s", c[k].path); return 0; }
+    return -1;
+}
+
 const char *discover_best(void) {
     static char best[1024];
     FILE *f = ours(discover_cache_path()) ? fopen(discover_cache_path(), "r") : NULL;

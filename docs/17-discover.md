@@ -29,12 +29,12 @@ Score: coder +4, instruct or chat +2, qwen +1, 1.5 to 4.5 GB +2 (the band the pr
  5   1.8 GB  Qwen3 1.7B Instruct           ~/.ollama/models/blobs/sha256-cccc
 ```
 
-The pick is written to `$TMPDIR/llmunculus-model.<uid>` (`TEMP` or `TMP` on Windows, else `/tmp`). Later runs read that one line and skip the scan. If the file it names is gone or no longer a GGUF, the scan runs again. `--models` prints the table above and rewrites the cache. Delete the file to forget the pick.
+The pick is written to `$TMPDIR/llmunculus-model.<uid>` (`TEMP` or `TMP` on Windows, else `/tmp`). Later runs read that one line and skip the scan. If the file it names is gone or no longer a GGUF, the scan runs again. `--list-models` prints the table above and rewrites the cache. `--use-model X` runs with a specific one, by list number, name or path fragment, or a path. Delete the cache file to forget the pick.
 
 ## what we built
 
 - `src/discover.c`: a bounded directory walk over the roots above, the header check, the score, the cache. 150 lines.
-- `--models` in jb.c. `--selftest` uses the same fallback and names what it found.
+- `--list-models` and `--use-model` in jb.c. `--selftest` uses the same fallback and names what it found.
 - `pick_model` gained the last step and a clearer error when every step fails.
 
 ## what broke, what was decided
@@ -51,3 +51,7 @@ The pick is written to `$TMPDIR/llmunculus-model.<uid>` (`TEMP` or `TMP` on Wind
 - No eval of discovered models beyond what M8 measured for the Qwen quants. A found Llama or Gemma will run but the prompts were tuned on Qwen2.5-Coder.
 - Windows and mac paths are written from the tools' documentation, unrun on those hosts, like the rest of the Windows and mac branches.
 - ollama can split a very large model's weights across blobs. Those are above the RAM cap on a small box anyway and are skipped.
+
+## remote
+
+`--remote host "task"` makes the discovered model portable. The thin binary goes to the host, and for a model task the model does too, but only once: a copy sent before is matched by size and reused, a model another tool left on the host is found by running `--list-models` there, and only failing both is the local pick sent to `~/.cache/llmunculus/model.gguf`. `--use-model` or `JB_MODEL` chooses what gets sent; `--send-model` forces a send. ssh and scp are the user's own, sharing one connection so a password is asked once. See 14-remote.md.

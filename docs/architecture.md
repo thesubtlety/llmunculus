@@ -46,7 +46,7 @@ Facts travel as text. After each task the KV cache rewinds to the system prompt;
 | include/ | copy of cosmo's headers the model may use, plus jb.h and jb_win.h, made by tools/hdrs.py |
 | examples/ | example programs, `// q:` first line. the closest one goes in the code prompt |
 | profile/ | one cross-platform probe per --explore section, run in order |
-| explore, remote | deterministic modes in jb.c: host profile, and copy-and-run over ssh |
+| explore, remote | deterministic modes in jb.c: host profile, and copy-and-run over ssh. remote reuses or sends a model, shares one ssh connection |
 
 ## engine interface
 

@@ -4,13 +4,13 @@
 llmunculus [-v] [-t seconds] [-a attempts] [--read-only] [--confirm] [--json] [--report DEST] [--report-if-alert] [model.gguf] ["task"]
 llmunculus --selftest [model.gguf]
 llmunculus --explore
-llmunculus --models
+llmunculus --list-models
 llmunculus --remote user@host [--explore | "task"]
 ```
 
 | what | order tried |
 |---|---|
-| model | `.gguf` on the command line, `$JB_MODEL`, `model.gguf` beside the executable, the one inside it, the best fit from ollama, LM Studio, the Hugging Face cache, llama.cpp, GPT4All or Jan |
+| model | `.gguf` or `--use-model X` on the command line, `$JB_MODEL`, `model.gguf` beside the executable, the one inside it, the best fit from ollama, LM Studio, the Hugging Face cache, llama.cpp, GPT4All or Jan |
 | task | command line, `/zip/task.txt` inside the executable, else a REPL |
 | system prompt | `/zip/system.txt` inside the executable, else the built-in one with the host's OS and arch |
 
@@ -37,11 +37,11 @@ make build/llmunculus SYSTEM="You are ..."                    # custom system pr
 
 ## remote
 
-`llmunculus --remote user@host [--explore | "task"]` copies this binary to the host, runs it there, and prints the output. Nothing installed on the remote. Use the thin build for `--explore`. `JB_SSH` and `JB_SCP` set ports and keys. A probe can also reach out with `ssh host 'cmd'` via jb_run for a single remote fact. See 14-remote.md.
+`llmunculus --remote user@host [--explore | [--use-model X] [--send-model] "task"]` copies this binary to the host, runs it there, and prints the output. Nothing installed on the remote. Your ssh config, keys and agent apply, and one authentication covers the whole run. A model task reuses a model already on the host, else sends the local pick once to `~/.cache/llmunculus/model.gguf` and reuses it next time by size. `--send-model` forces the copy. Use the thin build for `--explore`. `JB_SSH` and `JB_SCP` override the transport. A probe can also reach out with `ssh host 'cmd'` via jb_run for a single remote fact. See 14-remote.md.
 
 ## models
 
-`llmunculus --models` lists the GGUF files other tools have downloaded, best fit first, with score, size and the name from the file header, and caches the top pick in `$TMPDIR/llmunculus-model.<uid>`. The thin build uses that pick when nothing else names a model. Delete the cache file or rerun `--models` after downloading something new. See 17-discover.md.
+`llmunculus --list-models` lists the GGUF files other tools have downloaded, best fit first, with score, size and the name from the file header, and caches the top pick in `$TMPDIR/llmunculus-model.<uid>`. When nothing names a model the top pick is used. `--use-model X` picks a different one: `X` is its number in that list, a fragment of its name or path, or a path to any `.gguf`. A bare `.gguf` path as the first argument works too. Delete the cache file or rerun `--list-models` after downloading something new. See 17-discover.md.
 
 ## explore
 

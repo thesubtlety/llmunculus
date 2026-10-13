@@ -14,6 +14,7 @@ static char *jb_slurp(const char *p){FILE *f=fopen(p,"rb");if(!f)return NULL;fse
 #include <unistd.h>
 #include <cosmo.h>
 #include <signal.h>
+#include <sys/stat.h>
 
 // linux only: anonymous memory is ours, file-backed is the model paged in from this executable
 static void mem_report(const char *when) {
@@ -79,7 +80,96 @@ static void usage(const char *a0) {
                     "  exit status: 0 ok, 2 the task was a yes/no question and the answer is yes, 1 error\n"
                     "  --selftest [model.gguf]   check every piece\n"
                     "  --explore                 print a concise host profile, no model needed\n"
-                    "  --models                  list the models other tools have downloaded, best fit first\n", a0);
+                    "  --list-models             the models other tools have downloaded, best fit first. the first is the default\n"
+                    "  --use-model X             one of them: its number in that list, a name fragment, or a path\n"
+                    "  --remote user@host ...    run on another host. see --remote with no arguments\n", a0);
+}
+
+static int ends_with(const char *s, const char *suf) { size_t n = strlen(s), m = strlen(suf); return n > m && !strcmp(s + n - m, suf); }
+
+// the model this run would use, without loading it: JB_MODEL, model.gguf beside the executable, else a found one
+static const char *local_model_path(void) {
+    const char *env = getenv("JB_MODEL"); if (env && *env) return env;
+    static char beside[1024]; snprintf(beside, sizeof beside, "%s", GetProgramExecutableName());
+    char *slash = strrchr(beside, '/'); if (slash) strcpy(slash + 1, "model.gguf"); else strcpy(beside, "model.gguf");
+    if (access(beside, R_OK) == 0) return beside;
+    return discover_best();
+}
+
+static int sh(const char *cmd) { if (verbose) fprintf(stderr, "[remote] %s\n", cmd); return system(cmd); }
+
+// copy this binary to a host, run it there, print the output. no install on the remote. a model task uses, in order:
+// the copy we sent before (same size), a model another tool left on the host, else our local pick sent once to ~/.cache/llmunculus.
+static int remote_main(int argc, char **argv) {
+    if (argc < 3) { fprintf(stderr, "usage: %s --remote user@host [--explore | [--use-model X] [--send-model] \"task\"]\n"
+                             "  copies this executable to the host over scp and runs it there. your ssh config, keys and agent apply.\n"
+                             "  a model task reuses a model already on the host, else sends the local pick once to ~/.cache/llmunculus/model.gguf.\n"
+                             "  --send-model sends ours even if the host has one. JB_SSH and JB_SCP override the transport, e.g. JB_SSH='ssh -p 2222 -i key'.\n", argv[0]); return 1; }
+    const char *host = argv[2];
+    const char *ssh = getenv("JB_SSH"), *scp = getenv("JB_SCP");
+    // one authentication for the whole run: the first connection stays open as a master for the others. not on Windows OpenSSH.
+    char mux[160] = "", sshd[200], scpd[200];
+    if (!IsWindows()) snprintf(mux, sizeof mux, " -o ControlMaster=auto -o ControlPath=/tmp/jb-ssh-%%r@%%h:%%p -o ControlPersist=60");
+    if (!ssh) { snprintf(sshd, sizeof sshd, "ssh%s", mux); ssh = sshd; }
+    if (!scp) { snprintf(scpd, sizeof scpd, "scp%s", mux); scp = scpd; }
+
+    // the remote invocation: default --explore, else the given args, each single-quoted for the remote shell. model flags stay local.
+    const char *model_arg = NULL; int send = 0, need_model = argc > 3;
+    char ra[6144] = ""; size_t k = 0;
+    for (int i = 3; i < argc && k < sizeof ra - 300; i++) {
+        if (!strcmp(argv[i], "--send-model")) { send = 1; continue; }
+        if (!strcmp(argv[i], "--use-model") && i + 1 < argc) { model_arg = argv[++i]; continue; }
+        if (ends_with(argv[i], ".gguf")) { model_arg = argv[i]; continue; }
+        if (!strcmp(argv[i], "--explore")) need_model = 0;
+        k += snprintf(ra + k, sizeof ra - k, " '");
+        for (const char *c = argv[i]; *c && k < sizeof ra - 8; c++) { if (*c == '\'') k += snprintf(ra + k, sizeof ra - k, "'\\''"); else ra[k++] = *c; }
+        k += snprintf(ra + k, sizeof ra - k, "'");
+    }
+    if (!*ra) snprintf(ra, sizeof ra, " --explore");
+
+    char local[1024] = ""; size_t off, sz;
+    if (need_model && embed_find("model.gguf", &off, &sz) == 0) need_model = 0;   // the full build carries its own
+    if (need_model) {
+        if (model_arg) { if (discover_pick(model_arg, local, sizeof local)) { fprintf(stderr, "no model matches %s. see --list-models\n", model_arg); return 1; } }
+        else { const char *p = local_model_path(); if (p) snprintf(local, sizeof local, "%s", p); }
+    }
+
+    char self[1024]; snprintf(self, sizeof self, "%s", GetProgramExecutableName());
+    char tmp[64]; snprintf(tmp, sizeof tmp, "/tmp/jb-remote-%d", (int)getpid());
+    char cmd[8192];
+    snprintf(cmd, sizeof cmd, "%s '%s' '%s:%s'", scp, self, host, tmp);
+    if (sh(cmd)) { fprintf(stderr, "copy to %s failed\n", host); return 1; }
+
+    const char *rmodel = "$HOME/.cache/llmunculus/model.gguf";
+    char menv[128] = "";
+    if (need_model) {
+        // what the host has: our earlier copy (its size), and whether another tool left a usable model
+        snprintf(cmd, sizeof cmd, "%s %s 'chmod +x %s; mkdir -p $HOME/.cache/llmunculus; if [ -f %s ]; then wc -c < %s; else echo 0; fi; %s --list-models >/dev/null 2>&1 && echo found || echo none'",
+                 ssh, host, tmp, rmodel, rmodel, tmp);
+        if (verbose) fprintf(stderr, "[remote] %s\n", cmd);
+        FILE *p = popen(cmd, "r"); char l1[64] = "0", l2[64] = "none";
+        if (p) { if (fgets(l1, sizeof l1, p)) fgets(l2, sizeof l2, p); pclose(p); }
+        long long have = atoll(l1); int found = !strncmp(l2, "found", 5);
+        struct stat st; long long want = *local && !stat(local, &st) ? (long long)st.st_size : -1;
+        int reuse = want > 0 && have == want;
+        int copy = *local && (send || (!reuse && !found));
+        if (copy) {
+            fprintf(stderr, "[remote] sending %s (%.1f GB) to %s:~/.cache/llmunculus/model.gguf, once\n", local, want / 1e9, host);
+            snprintf(cmd, sizeof cmd, "%s '%s' '%s:.cache/llmunculus/model.gguf'", scp, local, host);
+            if (sh(cmd)) { fprintf(stderr, "model copy to %s failed\n", host); return 1; }
+            snprintf(menv, sizeof menv, "JB_MODEL=%s ", rmodel);
+        } else if (reuse || (have > 0 && !found)) {
+            if (verbose) fprintf(stderr, "[remote] using the model already at %s:~/.cache/llmunculus/model.gguf (%lld bytes)\n", host, have);
+            snprintf(menv, sizeof menv, "JB_MODEL=%s ", rmodel);
+        } else if (!found) {
+            fprintf(stderr, "no model on %s and none here to send. see --list-models\n", host);
+            snprintf(cmd, sizeof cmd, "%s %s 'rm -f %s'", ssh, host, tmp); sh(cmd);
+            return 1;
+        } else if (verbose) fprintf(stderr, "[remote] %s has a model of its own\n", host);
+    }
+    snprintf(cmd, sizeof cmd, "%s %s 'chmod +x %s && %s%s%s; rm -f %s'", ssh, host, tmp, menv, tmp, ra, tmp);   // run and clean up
+    int rc = sh(cmd);
+    return rc ? 1 : 0;
 }
 
 int main(int argc, char **argv) {
@@ -87,33 +177,8 @@ int main(int argc, char **argv) {
     if (argc > 1 && !strcmp(argv[1], "--run")) return child_main();
     for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "-v")) verbose = 1;
     if (argc > 1 && !strcmp(argv[1], "--selftest")) return selftest_main(argc > 2 ? argv[2] : NULL) ? 1 : 0;
-    if (argc > 1 && !strcmp(argv[1], "--remote")) {   // copy this binary to a host, run it there, print the output. no install on the remote.
-        if (argc < 3) { fprintf(stderr, "usage: %s --remote user@host [--explore | \"task\"]\n"
-                                 "  copies this executable to the host over scp and runs it there.\n"
-                                 "  set JB_SSH and JB_SCP to add ports or keys, e.g. JB_SSH='ssh -p 2222 -i key'.\n"
-                                 "  for --explore use the thin build; a model task needs the model on the remote or the full build.\n", argv[0]); return 1; }
-        const char *host = argv[2];
-        const char *ssh = getenv("JB_SSH"); if (!ssh) ssh = "ssh";
-        const char *scp = getenv("JB_SCP"); if (!scp) scp = "scp";
-        char self[1024]; snprintf(self, sizeof self, "%s", GetProgramExecutableName());
-        char tmp[64]; snprintf(tmp, sizeof tmp, "/tmp/jb-remote-%d", (int)getpid());
-        char cmd[8192];
-        snprintf(cmd, sizeof cmd, "%s '%s' '%s:%s'", scp, self, host, tmp);   // send the binary
-        if (verbose) fprintf(stderr, "[remote] %s\n", cmd);
-        if (system(cmd)) { fprintf(stderr, "copy to %s failed\n", host); return 1; }
-        // the remote invocation: default --explore, else the given args, each single-quoted for the remote shell
-        char ra[6144] = ""; size_t k = 0;
-        for (int i = 3; i < argc && k < sizeof ra - 300; i++) {
-            k += snprintf(ra + k, sizeof ra - k, " '");
-            for (const char *c = argv[i]; *c && k < sizeof ra - 8; c++) { if (*c == '\'') k += snprintf(ra + k, sizeof ra - k, "'\\''"); else ra[k++] = *c; }
-            k += snprintf(ra + k, sizeof ra - k, "'");
-        }
-        if (argc <= 3) snprintf(ra, sizeof ra, " --explore");
-        snprintf(cmd, sizeof cmd, "%s %s 'chmod +x %s && %s%s; rm -f %s'", ssh, host, tmp, tmp, ra, tmp);   // run and clean up
-        if (verbose) fprintf(stderr, "[remote] %s\n", cmd);
-        int rc = system(cmd);
-        return rc ? 1 : 0;
-    }
+    if (argc > 2 && !strcmp(argv[1], "-v") && !strcmp(argv[2], "--remote")) { argv++; argc--; }   // -v --remote reads naturally
+    if (argc > 1 && !strcmp(argv[1], "--remote")) return remote_main(argc, argv);
     if (argc > 1 && !strcmp(argv[1], "--explore")) {   // host profile: run each profile/*.c section in order. no model.
         char idx[1200]; snprintf(idx, sizeof idx, "%s/profile/index.txt", jb_root());
         char *list = jb_slurp(idx);
@@ -130,11 +195,11 @@ int main(int argc, char **argv) {
         }
         return 0;
     }
-    if (argc > 1 && !strcmp(argv[1], "--models")) {   // what the scan finds, and refresh the cached pick
+    if (argc > 1 && !strcmp(argv[1], "--list-models")) {   // what the scan finds, and refresh the cached pick
         model_cand c[64]; int n = discover_models(c, 64);
         for (int i = 0; i < n; i++) printf("%2d  %4.1f GB  %-40.40s %s\n", c[i].score, c[i].gb, c[i].name, c[i].path);
         if (!n) { printf("no usable model found\n"); return 1; }
-        printf("pick: %s  (cached in %s)\n", c[0].path, discover_cache_path());
+        printf("default: %s  (cached in %s)\n", c[0].path, discover_cache_path());
         return 0;
     }
     if (argc > 2 && !strcmp(argv[1], "--example")) {   // which example would this question get? no model needed
@@ -143,7 +208,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     int ai = 1, timeout_s = 5, confirm = 0, attempts = 3, json = 0, only_alert = 0;
-    const char *report = NULL;
+    const char *report = NULL; char use_model[1024] = "";
     for (; ai < argc && argv[ai][0] == '-'; ai++) {
         if (!strcmp(argv[ai], "-v")) verbose = 1;
         else if (!strcmp(argv[ai], "--json")) json = 1;
@@ -153,9 +218,12 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[ai], "--read-only")) setenv("JB_READONLY", "1", 1);   // the child reads it
         else if (!strcmp(argv[ai], "-a") && ai + 1 < argc) attempts = atoi(argv[++ai]);
         else if (!strcmp(argv[ai], "-t") && ai + 1 < argc) timeout_s = atoi(argv[++ai]);
+        else if (!strcmp(argv[ai], "--use-model") && ai + 1 < argc) {
+            if (discover_pick(argv[++ai], use_model, sizeof use_model)) { fprintf(stderr, "no model matches %s. see --list-models\n", argv[ai]); return 1; }
+        }
         else { usage(argv[0]); return 1; }
     }
-    const char *path = NULL;
+    const char *path = *use_model ? use_model : NULL;
     if (argc > ai && strlen(argv[ai]) > 5 && !strcmp(argv[ai] + strlen(argv[ai]) - 5, ".gguf")) path = argv[ai++];
     const char *used;
     engine *e = pick_model(path, 8192, 4, &used);

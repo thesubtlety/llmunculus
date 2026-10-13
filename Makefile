@@ -1,6 +1,8 @@
 COSMO ?= $(HOME)/.local/opt/cosmocc
 CC     = $(COSMO)/bin/cosmocc
 CFLAGS = -O2 -mcosmo -Wall -Wno-format-truncation
+# a failed recipe must not leave a half-written target: an empty predefs.h from a run without cosmocc looked up to date later
+.DELETE_ON_ERROR:
 # keep these pattern-rule intermediates. not a bare .SECONDARY: that makes every target intermediate, and make
 # silently skips an intermediate it cannot build, so a missing source surfaced as "cosmoar: no such file".
 .SECONDARY: build/tcc/host/x86_64-tcc build/tcc/host/arm64-tcc build/gen/ggml-cpu/arch/quants.c build/gen/ggml-cpu/arch/repack.cpp
@@ -66,7 +68,7 @@ check-syms: build/runtest
 # gcc's predefined type macros. tcc needs them to read cosmo's headers. drop the four tcc already defines.
 build/gen/tcc/predefs.h:
 	@mkdir -p build/gen/tcc
-	echo | $(COSMO)/bin/x86_64-unknown-cosmo-cc -dM -E - | grep -E "define __(U?INT|CHAR16|CHAR32|SIG_ATOMIC|WINT|SIZEOF|BYTE_ORDER|ORDER_|SCHAR|SHRT|LONG|WCHAR|SIZE_MAX|PTRDIFF|INTMAX|UINTMAX|FLT|DBL|LDBL|BIGGEST)" | grep -vE "INT128|__(U?INTPTR|PTRDIFF|INT64)_TYPE__" > $@
+	echo | $(COSMO)/bin/x86_64-unknown-cosmo-cc -dM -E - | grep -E "define __(U?INT|CHAR16|CHAR32|SIG_ATOMIC|WINT|SIZEOF|BYTE_ORDER|ORDER_|SCHAR|SHRT|LONG|WCHAR|SIZE_MAX|PTRDIFF|INTMAX|UINTMAX|FLT|DBL|LDBL|BIGGEST)" | grep -vE "INT128|__(U?INTPTR|PTRDIFF|INT64)_TYPE__" > $@ && test -s $@
 
 # the header set the model may use, and the constants table. host tcc does the dependency scan.
 build/gen/tcc/consts.c: src/allhdrs.c src/jb_win.h src/jb.h $(wildcard examples/*.c) $(wildcard profile/*.c) examples/index.txt profile/index.txt tools/hdrs.py build/gen/tcc/predefs.h build/tcc/host/x86_64-tcc

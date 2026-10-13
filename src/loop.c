@@ -246,8 +246,8 @@ static int solve(ctx *c, char kind, const char *need, char *fact, size_t cap) {
     else
     snprintf(user, sizeof user,
              "Known facts:\n%s\n%sWrite one C99 program that answers: %s\n"
-             "Rules: one file, only libc and <jb.h>, print the answer on stdout, exit 0, no input. " HELPERS "%sCode only.",
-             *c->facts ? c->facts : "- none yet\n", block, need,
+             "Rules: one file, only libc and <jb.h>, print the answer on stdout, exit 0, no input. " HELPERS "%s%sCode only.",
+             *c->facts ? c->facts : "- none yet\n", block, need, ssh_steer,
              ex ? "Follow the example above. " :
              win ? "On Windows: #include <jb_win.h> gives jb_win_user, jb_win_elevated, jb_win_privileges, jb_win_services, jb_win_service_status. For anything else run powershell -NoProfile -Command with ConvertTo-Json. " :
              (c->o->host && strstr(c->o->host, "linux") ? "Use the C library where it has the answer: sysconf, statvfs, getpwuid, uname, getifaddrs, fopen on files including /proc and /sys. Where only a command has it, run it with jb_run and parse its output. " : "Use the C library where it has the answer. Where only a command has it, run it with jb_run and parse its output. "));

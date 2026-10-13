@@ -116,10 +116,17 @@ static int remote_main(int argc, char **argv) {
     const char *host = argv[2];
     const char *ssh = getenv("JB_SSH"), *scp = getenv("JB_SCP");
     // one authentication for the whole run: the first connection stays open as a master for the others. not on Windows OpenSSH.
-    char mux[160] = "", sshd[200], scpd[200];
+    char mux[160] = "", keys[512] = "", sshd[768], scpd[768];
     if (!IsWindows()) snprintf(mux, sizeof mux, " -o ControlMaster=auto -o ControlPath=/tmp/jb-ssh-%%r@%%h:%%p -o ControlPersist=60");
-    if (!ssh) { snprintf(sshd, sizeof sshd, "ssh%s", mux); ssh = sshd; }
-    if (!scp) { snprintf(scpd, sizeof scpd, "scp%s", mux); scp = scpd; }
+    // JB_SSH_KEYS: space-separated key files, each -i in order, IdentitiesOnly so only these are offered (under the server's MaxAuthTries)
+    const char *kl = getenv("JB_SSH_KEYS");
+    if (kl && *kl) {
+        size_t n = snprintf(keys, sizeof keys, " -o IdentitiesOnly=yes");
+        char tmp[400]; snprintf(tmp, sizeof tmp, "%s", kl);
+        for (char *t = strtok(tmp, " "); t && n < sizeof keys - 64; t = strtok(NULL, " ")) n += snprintf(keys + n, sizeof keys - n, " -i %s", t);
+    }
+    if (!ssh) { snprintf(sshd, sizeof sshd, "ssh%s%s", mux, keys); ssh = sshd; }
+    if (!scp) { snprintf(scpd, sizeof scpd, "scp%s%s", mux, keys); scp = scpd; }
 
     // the remote invocation: default --explore, else the given args, each single-quoted for the remote shell. model flags stay local.
     const char *model_arg = NULL; int send = 0, need_model = argc > 3;

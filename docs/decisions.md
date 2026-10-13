@@ -80,3 +80,5 @@
 | jb_ssh identity | `$JB_SSH` overrides the ssh command (same var as `--remote`), so a non-default key works without the model guessing a key path |
 | ssh DO steer | when an ssh example matches, the code step is told to use jb_ssh + `$HOME`, not a raw ssh with a guessed key or absolute remote path |
 | action_task flip | a 3B often tags a write/send as NEED; a leading-verb check flips a one-step NEED to DO so the clean "done." path runs. read questions (how/what/which) never match |
+| JB_SSH_KEYS | space-separated key files -> `-i` each in order + `IdentitiesOnly=yes`, so only those are tried and the server's MaxAuthTries is not spent on agent keys first. honoured by jb_ssh and --remote |
+| ssh steer on NEED too | a read-over-ssh is a NEED; the "use jb_ssh, no raw ssh, $HOME on the remote" steer now applies to the NEED prompt, not just DO |

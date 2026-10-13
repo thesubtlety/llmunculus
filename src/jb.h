@@ -61,9 +61,20 @@ static char *jb_run(const char *cmd) {
 }
 /* run cmd on userhost ("user@host") over ssh and return its output, like jb_run but on another box.
    cmd is quoted for the remote shell here; jb_run quotes the whole line for the local shell. BatchMode fails fast if keys are not set up.
-   $JB_SSH replaces the whole ssh command, so a non-default key is JB_SSH='ssh -i ~/.ssh/key -o BatchMode=yes -o ConnectTimeout=8'. */
+   $JB_SSH replaces the whole ssh command. $JB_SSH_KEYS is space-separated key files, each tried in order with IdentitiesOnly so only
+   these are offered (keeps the count under the server's MaxAuthTries). Example: JB_SSH_KEYS='~/.ssh/a ~/.ssh/b'. */
 static char *jb_ssh(const char *userhost, const char *cmd) {
-    const char *ssh = getenv("JB_SSH"); if (!ssh || !*ssh) ssh = "ssh -o BatchMode=yes -o ConnectTimeout=8";
+    const char *ssh = getenv("JB_SSH"); char base[2048];
+    if (!ssh || !*ssh) {
+        size_t b = snprintf(base, sizeof base, "ssh -o BatchMode=yes -o ConnectTimeout=8");
+        const char *keys = getenv("JB_SSH_KEYS");
+        if (keys && *keys) {
+            b += snprintf(base + b, sizeof base - b, " -o IdentitiesOnly=yes");
+            char tmp[1024]; snprintf(tmp, sizeof tmp, "%s", keys);
+            for (char *t = strtok(tmp, " "); t && b < sizeof base - 64; t = strtok(NULL, " ")) b += snprintf(base + b, sizeof base - b, " -i %s", t);
+        }
+        ssh = base;
+    }
     char line[4096]; size_t k = snprintf(line, sizeof line, "%s %s '", ssh, userhost);
     for (const char *c = cmd; *c && k < sizeof line - 8; c++) { if (*c == '\'') { memcpy(line + k, "'\\''", 4); k += 4; } else line[k++] = *c; }
     line[k++] = '\'';

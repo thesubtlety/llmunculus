@@ -39,6 +39,7 @@ Facts travel as text. After each task the KV cache rewinds to the system prompt;
 | tools/hdrs.py | copies the header closure, writes the constants table |
 | host.c | OS and arch string from uname, for the system prompt |
 | embed.c | read our own exe as a zip. find a member's data offset. zip64 aware |
+| discover.c | find GGUF files other tools downloaded, score them, cache the pick. the last step of model precedence |
 | selftest.c | `--selftest`: one PASS/FAIL line per piece, for fresh machines |
 | tools/embed.py | add headers, tcc runtime and the aligned model to the APE |
 | patches/ | tcc-dual-mem.patch, the only change to third-party code |

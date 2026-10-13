@@ -8,6 +8,7 @@
 #include "embed.h"
 #include "engine.h"
 #include "host.h"
+#include "discover.h"
 
 static int fails;
 static void report(const char *name, int ok, const char *detail) { printf("%s  %-14s %s\n", ok ? "PASS" : "FAIL", name, detail); if (!ok) fails++; }
@@ -52,6 +53,7 @@ int selftest_main(const char *model_path) {
     size_t off = 0, size = 0;
     int found = embed_find("model.gguf", &off, &size) == 0;
     snprintf(d, sizeof d, found ? "offset %zu size %zu aligned=%s" : "none inside this file", off, size, off % 4096 ? "no" : "yes");
+    if (!found && !model_path && (model_path = discover_best())) snprintf(d, sizeof d, "none inside, found %s", model_path);   // same fallback as a run
     report("embedded model", found || model_path, d);
 
     double t0 = now();

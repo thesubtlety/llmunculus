@@ -36,7 +36,9 @@
 | empty output | automatic fix request, no verdict asked | the model once accepted an empty line as a fact |
 | answer check | any fact value missing from the answer is printed under it | the prose step paraphrases. the footer shows what was measured |
 | timeout | -t flag, default 5 s, one automatic retry at 4x | a big tree walk is slow and still right |
-| model precedence | command line, $JB_MODEL, model.gguf beside the file, embedded | an on-disk model costs nothing, the embedded one is never paged in |
+| model precedence | command line, $JB_MODEL, model.gguf beside the file, embedded, then a scan of other tools' caches | an on-disk model costs nothing, the embedded one is never paged in. the scan lets the 15 MB thin build run with no download |
+| model scan | ollama, LM Studio, HF hub, llama.cpp, GPT4All, Jan, ~/models, ~/Downloads. GGUF magic, chat template required, under 70% of RAM. coder and instruct score highest, 1.5 to 4.5 GB preferred | the loop needs chat turns and was tuned on a 3B coder. see 17-discover.md |
+| model pick cache | one line in ~/.cache/llmunculus/model (LOCALAPPDATA on Windows), rechecked on read, `--models` rewrites it | temp is world-writable: a planted path there would choose the GGUF we parse |
 | fixed-purpose builds | TASK= and SYSTEM= embed task.txt and system.txt | same binary, one more zip member |
 | actions | DO steps, no gate, `--confirm` opt-in | the tool runs from cron |
 | commands | `system` and `popen` allowed, C calls preferred | an IT tool needs systemctl and docker. C calls port to all three OSes, commands do not |

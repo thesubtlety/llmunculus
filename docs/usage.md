@@ -4,12 +4,13 @@
 llmunculus [-v] [-t seconds] [-a attempts] [--read-only] [--confirm] [--json] [--report DEST] [--report-if-alert] [model.gguf] ["task"]
 llmunculus --selftest [model.gguf]
 llmunculus --explore
+llmunculus --models
 llmunculus --remote user@host [--explore | "task"]
 ```
 
 | what | order tried |
 |---|---|
-| model | `.gguf` on the command line, `$JB_MODEL`, `model.gguf` beside the executable, the one inside it |
+| model | `.gguf` on the command line, `$JB_MODEL`, `model.gguf` beside the executable, the one inside it, the best fit from ollama, LM Studio, the Hugging Face cache, llama.cpp, GPT4All or Jan |
 | task | command line, `/zip/task.txt` inside the executable, else a REPL |
 | system prompt | `/zip/system.txt` inside the executable, else the built-in one with the host's OS and arch |
 
@@ -17,7 +18,7 @@ Flags: `-v` logs every step to stderr. `-a N` code attempts per step, default 3.
 
 REPL commands: `/facts` `/reset` `/ctx` `/quit`.
 
-Environment: `JB_MODEL` model path. `JB_TCCMEM=dual` two-view tcc memory for hosts that refuse rwx pages. `JB_FACTS_MAX` bytes of facts before a squash. `JB_ROOT` where headers and tcc objects live, default `/zip` when embedded. `JB_DEBUG_ZIP=1` traces the embedded-member lookup.
+Environment: `JB_MODEL` model path. `JB_TCCMEM=dual` two-view tcc memory for hosts that refuse rwx pages. `JB_FACTS_MAX` bytes of facts before a squash. `JB_ROOT` where headers and tcc objects live, default `/zip` when embedded. `JB_DEBUG_ZIP=1` traces the embedded-member lookup. `OLLAMA_MODELS`, `HF_HOME`, `HF_HUB_CACHE`, `LLAMA_CACHE` and `XDG_CACHE_HOME` are honored by the model scan.
 
 ## builds
 
@@ -37,6 +38,10 @@ make build/llmunculus SYSTEM="You are ..."                    # custom system pr
 ## remote
 
 `llmunculus --remote user@host [--explore | "task"]` copies this binary to the host, runs it there, and prints the output. Nothing installed on the remote. Use the thin build for `--explore`. `JB_SSH` and `JB_SCP` set ports and keys. A probe can also reach out with `ssh host 'cmd'` via jb_run for a single remote fact. See 14-remote.md.
+
+## models
+
+`llmunculus --models` lists the GGUF files other tools have downloaded, best fit first, with score, size and the name from the file header, and caches the top pick in `~/.cache/llmunculus/model`. The thin build uses that pick when nothing else names a model. Delete the cache file or rerun `--models` after downloading something new. See 17-discover.md.
 
 ## explore
 

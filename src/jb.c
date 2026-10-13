@@ -8,6 +8,7 @@
 #include "host.h"
 #include "report.h"
 #include "embed.h"
+#include "discover.h"
 // read a whole file (jb_slurp mirrors jb.h jb_read_file, but jb.c does not include jb.h)
 static char *jb_slurp(const char *p){FILE *f=fopen(p,"rb");if(!f)return NULL;fseek(f,0,SEEK_END);long n=ftell(f);rewind(f);char *s=malloc(n+1);if(fread(s,1,n,f)!=(size_t)n){}s[n]=0;fclose(f);return s;}
 #include <unistd.h>
@@ -47,7 +48,7 @@ static char *zip_text(const char *name) {
     return n ? s : (free(s), NULL);
 }
 
-// model precedence: command line .gguf, JB_MODEL, model.gguf beside the executable, the one inside it
+// model precedence: command line .gguf, JB_MODEL, model.gguf beside the executable, the one inside it, one another tool downloaded
 static engine *pick_model(const char *cli, int n_ctx, int threads, const char **used) {
     const char *env = getenv("JB_MODEL");
     char beside[1024]; snprintf(beside, sizeof beside, "%s", GetProgramExecutableName());
@@ -55,13 +56,18 @@ static engine *pick_model(const char *cli, int n_ctx, int threads, const char **
     if (cli)                       { *used = cli;      return engine_open_file(cli, n_ctx, threads); }
     if (env && *env)               { *used = env;      return engine_open_file(env, n_ctx, threads); }
     if (access(beside, R_OK) == 0) { *used = "beside"; return engine_open_file(beside, n_ctx, threads); }
-    *used = "embedded";
-    return engine_open_embedded(n_ctx, threads);
+    size_t off, size;
+    if (embed_find("model.gguf", &off, &size) == 0) { *used = "embedded"; return engine_open_embedded(n_ctx, threads); }
+    const char *found = discover_best();
+    if (!found) { *used = "none: no model on the command line, in $JB_MODEL, beside this file, inside it, or in another tool's cache"; return NULL; }
+    *used = found;
+    return engine_open_file(found, n_ctx, threads);
 }
 
 static void usage(const char *a0) {
     fprintf(stderr, "usage: %s [-v] [-t seconds] [model.gguf] [\"task\"]\n"
-                    "  model: command line, else $JB_MODEL, else model.gguf beside this file, else the one inside it\n"
+                    "  model: command line, else $JB_MODEL, else model.gguf beside this file, else the one inside it,\n"
+                    "         else the best fit from ollama, LM Studio, the Hugging Face cache, llama.cpp, GPT4All, Jan\n"
                     "  task:  command line, else /zip/task.txt inside this file, else a REPL (/facts /reset /ctx /quit)\n"
                     "  -t     per-program run limit, default 5. a timed-out program gets one retry at 4x\n"
                     "  -a     code attempts per step, default 3\n"
@@ -72,7 +78,8 @@ static void usage(const char *a0) {
                     "  --report-if-alert  only when the verdict is yes or a step failed\n"
                     "  exit status: 0 ok, 2 the task was a yes/no question and the answer is yes, 1 error\n"
                     "  --selftest [model.gguf]   check every piece\n"
-                    "  --explore                 print a concise host profile, no model needed\n", a0);
+                    "  --explore                 print a concise host profile, no model needed\n"
+                    "  --models                  list the models other tools have downloaded, best fit first\n", a0);
 }
 
 int main(int argc, char **argv) {
@@ -121,6 +128,13 @@ int main(int argc, char **argv) {
             if (r.err_len) fprintf(stderr, "[%s] %.*s", name, (int)r.err_len, r.err);   // a broken section notes itself, others go on
             run_free(&r); free(src);
         }
+        return 0;
+    }
+    if (argc > 1 && !strcmp(argv[1], "--models")) {   // what the scan finds, and refresh the cached pick
+        model_cand c[64]; int n = discover_models(c, 64);
+        for (int i = 0; i < n; i++) printf("%2d  %4.1f GB  %-40.40s %s\n", c[i].score, c[i].gb, c[i].name, c[i].path);
+        if (!n) { printf("no usable model found\n"); return 1; }
+        printf("pick: %s  (cached in %s)\n", c[0].path, discover_cache_path());
         return 0;
     }
     if (argc > 2 && !strcmp(argv[1], "--example")) {   // which example would this question get? no model needed

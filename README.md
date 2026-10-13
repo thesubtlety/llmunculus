@@ -18,7 +18,7 @@ llmunculus --report syslog "is / over 90% full"           # report + exit code
 llmunculus --remote user@host --explore                   # profile a box over ssh
 ```
 
-Also: `--read-only` (refuse writes), `--json`, `--selftest`, a REPL with no args.
+Also: `--read-only` (refuse writes), `--json`, `--selftest`, `--models` (which downloaded model it would use), a REPL with no args.
 Flags and env vars: [`docs/usage.md`](docs/usage.md).
 
 ## Build
@@ -45,7 +45,7 @@ curl -sSL -o models/qwen2.5-coder-3b-instruct-q6_k.gguf \
 
 # 4. build (llama.cpp is ~7 min the first time)
 make build/llmunculus        # 2.8 GB, model inside
-make build/llmunculus-thin   # 15 MB, bring your own model
+make build/llmunculus-thin   # 15 MB, uses a model you already have (ollama, LM Studio, HF cache, ...)
 ```
 
 Verify on any machine: copy the binary over and run `./llmunculus --selftest`.

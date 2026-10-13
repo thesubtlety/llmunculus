@@ -22,11 +22,11 @@ build/infer: src/infer.c build/llama/libllama.a
 	$(CC) $(CFLAGS) $(LLAMA_INC) -c -o build/infer.o src/infer.c
 	$(CXX) -o $@ build/infer.o build/llama/libllama.a -lpthread -lm
 
-CORE = src/engine.c src/grammar.c src/parse.c src/host.c src/embed.c
+CORE = src/engine.c src/grammar.c src/parse.c src/host.c src/embed.c src/discover.c
 build/gramtest: src/gramtest.c $(CORE) build/llama/libllama.a
 	$(CC) $(CFLAGS) $(LLAMA_INC) -c -o build/gramtest.o src/gramtest.c
 	for f in $(CORE); do $(CC) $(CFLAGS) $(LLAMA_INC) -c -o build/$$(basename $$f .c).o $$f || exit 1; done
-	$(CXX) -o $@ build/gramtest.o build/engine.o build/grammar.o build/parse.o build/host.o build/embed.o build/llama/libllama.a -lpthread -lm
+	$(CXX) -o $@ build/gramtest.o build/engine.o build/grammar.o build/parse.o build/host.o build/embed.o build/discover.o build/llama/libllama.a -lpthread -lm
 
 include mk/tcc.mk
 tcc: build/tcc/libtcc.a

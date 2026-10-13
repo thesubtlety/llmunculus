@@ -82,3 +82,6 @@
 | action_task flip | a 3B often tags a write/send as NEED; a leading-verb check flips a one-step NEED to DO so the clean "done." path runs. read questions (how/what/which) never match |
 | JB_SSH_KEYS | space-separated key files -> `-i` each in order + `IdentitiesOnly=yes`, so only those are tried and the server's MaxAuthTries is not spent on agent keys first. honoured by jb_ssh and --remote |
 | ssh steer on NEED too | a read-over-ssh is a NEED; the "use jb_ssh, no raw ssh, $HOME on the remote" steer now applies to the NEED prompt, not just DO |
+| --remote multiple keys | JB_SSH_KEYS adds each as `-i` to the ssh/scp transport with IdentitiesOnly; `~` expanded locally first because the binary's system() is cosmo's shell and rejects a bare `~` |
+| forward keys to the remote agent | JB_SSH_KEYS and JB_SSH are carried to the remote invocation, so a task that ssh-es onward uses the same keys; `~` left literal there for the remote's ssh to expand |
+| no fan-out for a failed action | a clear action (leading verb) whose one-step DO fails reports "not done" instead of decomposing into NEEDs it cannot answer ($HOME, addresses); the whole task, not plan1's lossy restatement, is handed to solve so the right example matches |

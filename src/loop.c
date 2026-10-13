@@ -375,16 +375,20 @@ int loop_task(engine *e, session *ss, const char *task, const loop_opts *o, char
              have ? "Known facts:\n" : "", have ? ss->facts : "", task);
     if (step(&c, "plan1", user, G_PLAN_ONE, o->temp, out, sizeof out) < 0) return -1;
     n = parse_plan(out, needs, kinds, &done);
-    if (n == 1 && kinds[0] == 'N' && action_task(task)) kinds[0] = 'D';   // a mislabeled write/send: run it as the action it is
+    // a clear action: force the DO path and keep the whole task. plan1 sometimes drops the verb ("...write hello..." -> "alice's home dir"),
+    // which then matches the wrong example. the original task carries every path, key and address the action needs.
+    if (n == 1 && action_task(task)) { kinds[0] = 'D'; snprintf(needs[0], sizeof needs[0], "%s", task); }
     if (n == 1) {
         char fact[512];
         if (solve(&c, kinds[0], needs[0], fact, sizeof fact)) return -1;
-        if (o->log) fprintf(o->log, "[fact] %s\n", *fact ? fact : "(none, falling back to a plan)");
+        if (o->log) fprintf(o->log, "[fact] %s\n", *fact ? fact : (action_task(task) ? "(none, action failed)" : "(none, falling back to a plan)"));
         if (*fact) {
             char labeled[700]; snprintf(labeled, sizeof labeled, "%s%s %s", kinds[0] == 'D' ? "did: " : "", needs[0], fact); add_fact(&c, labeled);
             snprintf(vals[0], sizeof vals[0], "%s", fact); n_vals = 1;
             goto answer;
         }
+        // a clear single action that failed: report it, do not fall back and fan out into questions it cannot answer ($HOME, addresses)
+        if (action_task(task)) { kinds[0] = 'D'; vals[0][0] = 0; n_vals = 1; ss->last_failed = 1; goto answer; }
     }
 
     // fallback: break it up

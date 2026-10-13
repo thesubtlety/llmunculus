@@ -22,6 +22,8 @@ So the health-check case is one command: `llmunculus-thin --remote ops@box --use
 
 **ssh credentials.** `--remote` runs your own `ssh` and `scp`, so `~/.ssh/config`, keys, agent and known_hosts apply exactly as from the shell. A password prompt reaches your terminal. The steps share one connection (`ControlMaster=auto`, a socket in `/tmp`, persisted 60 s), so a password is asked once, not per step. Connection sharing is off on Windows OpenSSH, which has no control sockets.
 
+**Trying several keys for the hop.** To reach the host by key instead of a password prompt, and to try more than one, `JB_SSH_KEYS='~/.ssh/a ~/.ssh/b' --remote host`. Each becomes `-i` in order with `IdentitiesOnly=yes`, so only those are offered and a wrong one does not spend the server's `MaxAuthTries`. The `~` is expanded here before the command runs, because the binary's own `system()` is cosmo's shell and rejects a bare `~`. `JB_SSH_KEYS` (and `JB_SSH`) are also forwarded to the agent on the remote, so a task that ssh-es onward from there uses the same keys; in the forwarded value the `~` is left for the remote's own ssh to expand against the remote home.
+
 The transport is overridable, for ports, keys, and jump hosts:
 
 ```

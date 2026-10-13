@@ -98,6 +98,13 @@ static const char *local_model_path(void) {
 
 static int sh(const char *cmd) { if (verbose) fprintf(stderr, "[remote] %s\n", cmd); return system(cmd); }
 
+// expand a leading ~/ to $HOME. system() here is cosmo's own shell, which rejects a bare ~.
+static const char *untilde(const char *p, char *buf, size_t cap) {
+    const char *h = getenv("HOME");
+    if (h && *h && p[0] == '~' && p[1] == '/') { snprintf(buf, cap, "%s%s", h, p + 1); return buf; }
+    return p;
+}
+
 // wrap s in single quotes for the local shell, so whatever quoting it already carries reaches ssh untouched.
 static char *sq(const char *s, char *out, size_t cap) {
     size_t k = 0; if (k < cap) out[k++] = '\'';
@@ -123,7 +130,9 @@ static int remote_main(int argc, char **argv) {
     if (kl && *kl) {
         size_t n = snprintf(keys, sizeof keys, " -o IdentitiesOnly=yes");
         char tmp[400]; snprintf(tmp, sizeof tmp, "%s", kl);
-        for (char *t = strtok(tmp, " "); t && n < sizeof keys - 64; t = strtok(NULL, " ")) n += snprintf(keys + n, sizeof keys - n, " -i %s", t);
+        for (char *t = strtok(tmp, " "); t && n < sizeof keys - 80; t = strtok(NULL, " ")) {
+            char kb[256]; n += snprintf(keys + n, sizeof keys - n, " -i %s", untilde(t, kb, sizeof kb));   // local key files; ~ expanded for system()
+        }
     }
     if (!ssh) { snprintf(sshd, sizeof sshd, "ssh%s%s", mux, keys); ssh = sshd; }
     if (!scp) { snprintf(scpd, sizeof scpd, "scp%s%s", mux, keys); scp = scpd; }
@@ -151,8 +160,8 @@ static int remote_main(int argc, char **argv) {
 
     char self[1024]; snprintf(self, sizeof self, "%s", GetProgramExecutableName());
     char tmp[64]; snprintf(tmp, sizeof tmp, "/tmp/jb-remote-%d", (int)getpid());
-    char cmd[8192];
-    char q1[1100], q2[1200];
+    char cmd[9728];
+    char q1[1100], q2[8700];   // q2 holds the whole single-quoted rcmd (which can be as large as the task buffer), not just a path
     snprintf(cmd, sizeof cmd, "%s %s %s:%s", scp, sq(self, q1, sizeof q1), host, tmp);
     if (sh(cmd)) { fprintf(stderr, "copy to %s failed\n", host); return 1; }
 
@@ -183,7 +192,12 @@ static int remote_main(int argc, char **argv) {
             return 1;
         } else if (verbose) fprintf(stderr, "[remote] %s has a model of its own\n", host);
     }
-    char rcmd[7200]; snprintf(rcmd, sizeof rcmd, "chmod +x %s && %s%s%s; rm -f %s", tmp, menv, tmp, ra, tmp);   // ra already remote-quoted
+    // carry the ssh identity to the remote agent, so a task that ssh-es onward from there uses the same key, not a guessed one
+    char senv[1200] = ""; char qe[600];
+    const char *fkeys = getenv("JB_SSH_KEYS"), *fssh = getenv("JB_SSH");
+    if (fkeys && *fkeys) snprintf(senv + strlen(senv), sizeof senv - strlen(senv), "JB_SSH_KEYS=%s ", sq(fkeys, qe, sizeof qe));
+    if (fssh && *fssh)   snprintf(senv + strlen(senv), sizeof senv - strlen(senv), "JB_SSH=%s ", sq(fssh, qe, sizeof qe));
+    char rcmd[8600]; snprintf(rcmd, sizeof rcmd, "chmod +x %s && %s%s%s%s; rm -f %s", tmp, menv, senv, tmp, ra, tmp);   // ra already remote-quoted
     snprintf(cmd, sizeof cmd, "%s %s %s", ssh, host, sq(rcmd, q2, sizeof q2));   // quote once more for the local shell
     int rc = sh(cmd);
     return rc ? 1 : 0;

@@ -29,7 +29,7 @@ Score: coder +4, instruct or chat +2, qwen +1, 1.5 to 4.5 GB +2 (the band the pr
  5   1.8 GB  Qwen3 1.7B Instruct           ~/.ollama/models/blobs/sha256-cccc
 ```
 
-The pick is written to `~/.cache/llmunculus/model` (`$XDG_CACHE_HOME`, or `%LOCALAPPDATA%\llmunculus\model` on Windows). Later runs read that one line and skip the scan. If the file it names is gone or no longer a GGUF, the scan runs again. `--models` prints the table above and rewrites the cache. Delete the file to forget the pick.
+The pick is written to `$TMPDIR/llmunculus-model.<uid>` (`TEMP` or `TMP` on Windows, else `/tmp`). Later runs read that one line and skip the scan. If the file it names is gone or no longer a GGUF, the scan runs again. `--models` prints the table above and rewrites the cache. Delete the file to forget the pick.
 
 ## what we built
 
@@ -39,7 +39,7 @@ The pick is written to `~/.cache/llmunculus/model` (`$XDG_CACHE_HOME`, or `%LOCA
 
 ## what broke, what was decided
 
-- **Temp was the first idea for the cache and was rejected.** `/tmp` is world-writable. Another user could plant a line pointing at a GGUF of their choosing and that is the file llama.cpp would parse. The per-user cache dir, mode 0700, has no such hole. The cache file itself is only a path; the file it names is checked for the GGUF magic before use.
+- **The cache lives in temp.** Runs are throwaway, so is the pick; a reboot costs one 0.4 s rescan. Temp is shared, so the file is named by uid, read only when owned by the current user, and unlinked before each write. The file it names is checked for the GGUF magic before use.
 - **Names from the header, not from manifests.** ollama blobs are named by digest. The ollama manifest JSON maps tags to digests, but the GGUF header already carries `general.name`, and that works for every source. No JSON parsing.
 - **Ollama blobs need a magic check.** The blob store holds the tokenizer, params and license as blobs too. A 200 MB file of zeros in the fixture was skipped by the magic check, not by size.
 - **Embedded before discovered.** The embedded model is the tuned one. A found model may be worse, so a full build never prefers a found one. Users who want otherwise set `JB_MODEL`.

@@ -129,27 +129,31 @@ int discover_models(model_cand *out, int cap) {
     int n = 0;
     for (int i = 0; i < ncands; i++) if (inspect(&cands[i]) == 0) cands[n++] = cands[i];
     qsort(cands, n, sizeof cands[0], by_score);
-    if (n) { FILE *f = fopen(discover_cache_path(), "w"); if (f) { fprintf(f, "%s\n", cands[0].path); fclose(f); } }
+    if (n) { unlink(discover_cache_path()); FILE *f = fopen(discover_cache_path(), "w"); if (f) { fprintf(f, "%s\n", cands[0].path); fclose(f); } }
     if (n > cap) n = cap;
     memcpy(out, cands, n * sizeof *out);
     return n;
 }
 
-// per-user, not world-writable temp: a planted path there would pick the model for us
+// temp, named per user. runs are throwaway and so is the pick
 const char *discover_cache_path(void) {
     static char p[1200];
-    const char *base = IsWindows() ? getenv("LOCALAPPDATA") : getenv("XDG_CACHE_HOME");
-    if (base && *base) snprintf(p, sizeof p, "%s/llmunculus", base);
-    else if (IsWindows()) snprintf(p, sizeof p, "%s/AppData/Local/llmunculus", home());
-    else snprintf(p, sizeof p, "%s/.cache/llmunculus", home());
-    mkdir(p, 0700);
-    strncat(p, "/model", sizeof p - strlen(p) - 1);
+    const char *t = getenv("TMPDIR");
+    if (!t || !*t) t = getenv("TEMP");
+    if (!t || !*t) t = getenv("TMP");
+    if (!t || !*t) t = "/tmp";
+    snprintf(p, sizeof p, "%s/llmunculus-model.%u", t, (unsigned)getuid());
     return p;
+}
+
+// temp is shared: only trust a file we own, so nobody else chooses the GGUF we parse
+static int ours(const char *path) {
+    struct stat st; return !stat(path, &st) && S_ISREG(st.st_mode) && (IsWindows() || st.st_uid == getuid());
 }
 
 const char *discover_best(void) {
     static char best[1024];
-    FILE *f = fopen(discover_cache_path(), "r");
+    FILE *f = ours(discover_cache_path()) ? fopen(discover_cache_path(), "r") : NULL;
     if (f) {
         int ok = fgets(best, sizeof best, f) != NULL; fclose(f);
         best[strcspn(best, "\r\n")] = 0;

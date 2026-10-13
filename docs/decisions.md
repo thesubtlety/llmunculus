@@ -31,6 +31,7 @@
 | failed question | adds no fact | noise in facts compounds through squash and every later prompt |
 | run memory | CONFIG_RUNMEM_RO=1 everywhere. `JB_TCCMEM=dual` for the two-view layout at runtime | Apple refuses rwx pages, hardened Linux may too. the retry needs no rebuild |
 | tcc patch | one, `patches/tcc-dual-mem.patch`, 12 lines | makes tcc's SELinux layout a runtime choice. applied by make, idempotent |
+| host tcc | two cross compilers from `tcc.c` with the host `cc`, fixed config.h, no `./configure` | configure writes for one host and one target. we need x86_64 and arm64 runtime objects on every build host. see 00-toolchain.md |
 | self-test | `--selftest` prints PASS/FAIL per piece | a fresh machine is one copy and one command away from a diagnosis |
 | facts from output | exit 0 and short text output becomes the fact verbatim. no model in between | a 3B rejected `burn` as "not a valid username" and turned `fridg` into `fridgid`. values must not pass through prose |
 | empty output | automatic fix request, no verdict asked | the model once accepted an empty line as a fact |

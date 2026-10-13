@@ -1,6 +1,7 @@
 COSMO ?= $(HOME)/.local/opt/cosmocc
 CC     = $(COSMO)/bin/cosmocc
 CFLAGS = -O2 -mcosmo -Wall -Wno-format-truncation
+.SECONDARY:   # keep pattern-rule intermediates: the host tccs and generated wrappers
 
 build/hello: src/hello.c
 	$(CC) $(CFLAGS) -o $@ $<
@@ -29,8 +30,8 @@ build/gramtest: src/gramtest.c $(CORE) build/llama/libllama.a
 	$(CXX) -o $@ build/gramtest.o build/engine.o build/grammar.o build/parse.o build/host.o build/embed.o build/discover.o build/llama/libllama.a -lpthread -lm
 
 include mk/tcc.mk
-tcc: build/tcc/libtcc.a
-.PHONY: tcc-patch
+tcc: build/tcc/libtcc.a $(TCC_RT)
+.PHONY: tcc tcc-patch llama mbedtls clean check-syms
 
 
 # fail if the model-facing symbol table names any cosmo IFUNC. see src/syms.c.
@@ -64,7 +65,7 @@ build/jb: $(JB_SRC) $(wildcard src/*.h) build/llama/libllama.a build/tcc/libtcc.
 #   SYSTEM="..."         replace the system prompt
 JB_MODEL ?= models/qwen2.5-coder-3b-instruct-q6_k.gguf
 EMBED_EXTRA = $(if $(TASK),task=build/gen/task.txt) $(if $(SYSTEM),system=build/gen/system.txt)
-build/llmunculus: build/jb tools/embed.py build/gen/tcc/consts.c FORCE
+build/llmunculus: build/jb tools/embed.py build/gen/tcc/consts.c $(TCC_RT) FORCE
 	@mkdir -p build/gen
 	$(if $(TASK),printf '%s\n' "$(TASK)" > build/gen/task.txt)
 	$(if $(SYSTEM),printf '%s\n' "$(SYSTEM)" > build/gen/system.txt)
@@ -72,7 +73,7 @@ build/llmunculus: build/jb tools/embed.py build/gen/tcc/consts.c FORCE
 	python3 tools/embed.py $@ $(JB_MODEL) $(EMBED_EXTRA)
 
 # same, no model inside. 15 MB. run with a .gguf argument, $$JB_MODEL, or model.gguf beside it.
-build/llmunculus-thin: build/jb tools/embed.py build/gen/tcc/consts.c FORCE
+build/llmunculus-thin: build/jb tools/embed.py build/gen/tcc/consts.c $(TCC_RT) FORCE
 	cp build/jb $@
 	python3 tools/embed.py $@ - $(EMBED_EXTRA)
 FORCE:

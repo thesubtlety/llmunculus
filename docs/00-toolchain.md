@@ -1,5 +1,23 @@
 # 00 toolchain
 
+## building from a clean clone
+
+`make -j4 build/llmunculus-thin` from nothing. Four things used to be built by hand and had no rule, so the first clean-clone build (on a Mac) failed with `No rule to make target build/tcc/host/x86_64-tcc`. All in make now, see `mk/tcc.mk` and `mk/llama.mk`:
+
+| piece | rule | why not tinycc's own Makefile |
+|---|---|---|
+| `build/gen/tcc/config.h` | printf | `./configure` writes one for the host. ours is fixed: predefs on, `/zip/tcc`, static, no bcheck |
+| `build/gen/tcc/tccdefs_.h` | tcc's `conftest.c -DC2STR` | same tool tinycc uses |
+| `build/tcc/host/{x86_64,arm64}-tcc` | `$(HOSTCC) tcc.c -DONE_SOURCE=1 -DTCC_TARGET_*` | two cross compilers, one line each. the host cc, not cosmocc: they only run at build time |
+| `build/tcc/lib/<arch>/{libtcc1.a,runmain.o}` | each host tcc compiles `lib/*.c` and `.S` | must be tcc output for the target arch. object list copied from `lib/Makefile` |
+| `patches/tcc-dual-mem.patch` | `build/tcc/.patched` stamp, `grep -q rt_dual` guard | idempotent. libtcc.a depends on the stamp |
+| `build/gen/ggml/*-version.h`, `build/gen/ggml-cpu/arch/*` | printf | CMake outputs and the per-arch wrappers from 01-inference.md |
+
+`.SECONDARY:` keeps the pattern-rule intermediates, else make deletes the host tccs after each build and redoes them next time.
+
+The runtime objects a fresh build produces differ byte for byte from the hand-built ones, in the source path tcc records in each object. The x86_64 set passes the self-test. The arm64 set is built the same way and is aarch64 ELF, first run on real hardware pending.
+
+
 Status: done on Linux. Mac and Windows: run `build/hello` there and note the result here.
 
 ## what is it

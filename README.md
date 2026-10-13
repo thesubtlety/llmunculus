@@ -43,10 +43,12 @@ curl -sSL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.2/mb
 curl -sSL -o models/qwen2.5-coder-3b-instruct-q6_k.gguf \
   https://huggingface.co/Qwen/Qwen2.5-Coder-3B-Instruct-GGUF/resolve/main/qwen2.5-coder-3b-instruct-q6_k.gguf
 
-# 4. build (llama.cpp is ~7 min the first time)
-make build/llmunculus        # 2.8 GB, model inside
-make build/llmunculus-thin   # 15 MB, uses a model you already have (ollama, LM Studio, HF cache, ...)
+# 4. build. about 9 minutes on 4 cores the first time, nearly all of it llama.cpp
+make -j4 build/llmunculus        # 2.8 GB, model inside
+make -j4 build/llmunculus-thin   # 15 MB, uses a model you already have (ollama, LM Studio, HF cache, ...)
 ```
+
+Also needs a host C compiler as `cc` (gcc, or clang from the Xcode command line tools) for tcc's own small build-time tools. `HOSTCC=clang make ...` to name one. Everything else is cosmocc.
 
 Verify on any machine: copy the binary over and run `./llmunculus --selftest`.
 

@@ -31,6 +31,15 @@ OBJS = $(patsubst %.c,$(OUT)/%.c.o,$(GGML_C) $(ARCH_C)) \
 $(OUT)/libllama.a: $(OBJS)
 	$(COSMO)/bin/cosmoar rcs $@ $^
 
+# CMake outputs, stubbed. and one wrapper per arch-specific source, since cosmocc compiles every file for both arches.
+$(OBJS): | $(GEN)/ggml/ggml-version.h $(GEN)/ggml/llama-version.h
+$(GEN)/ggml/ggml-version.h $(GEN)/ggml/llama-version.h:
+	@mkdir -p $(GEN)/ggml
+	n=$$(basename $@ -version.h | tr a-z A-Z); printf '#pragma once\n#define %s_VERSION "cosmo"\n#define %s_COMMIT  "%s"\n' $$n $$n "$$(git -C $(LL) rev-parse --short HEAD 2>/dev/null || echo unknown)" > $@
+$(GEN)/ggml-cpu/arch/%: $(G)/ggml-cpu/arch/x86/% $(G)/ggml-cpu/arch/arm/%
+	@mkdir -p $(@D)
+	printf '#if defined(__x86_64__)\n#include "arch/x86/%s"\n#elif defined(__aarch64__)\n#include "arch/arm/%s"\n#endif\n' $* $* > $@
+
 $(OUT)/%.c.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(LCC) -c -o $@ $<

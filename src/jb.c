@@ -54,7 +54,9 @@ static engine *pick_model(const char *cli, int n_ctx, int threads, const char **
     const char *env = getenv("JB_MODEL");
     char beside[1024]; snprintf(beside, sizeof beside, "%s", GetProgramExecutableName());
     char *slash = strrchr(beside, '/'); if (slash) strcpy(slash + 1, "model.gguf"); else strcpy(beside, "model.gguf");
+    const char *url = getenv("JB_MODEL_URL");
     if (cli)                       { *used = cli;      return engine_open_file(cli, n_ctx, threads); }
+    if (url && *url)               { *used = url;      return engine_open_url(url); }   // remote model: ollama or openai-compatible
     if (env && *env)               { *used = env;      return engine_open_file(env, n_ctx, threads); }
     if (access(beside, R_OK) == 0) { *used = "beside"; return engine_open_file(beside, n_ctx, threads); }
     size_t off, size;
@@ -82,6 +84,8 @@ static void usage(const char *a0) {
                     "  --explore                 print a concise host profile, no model needed\n"
                     "  --list-models             the models other tools have downloaded, best fit first. the first is the default\n"
                     "  --use-model X             one of them: its number in that list, a name fragment, or a path\n"
+                    "  --model-url URL           use a remote model: ollama or an openai-compatible endpoint, not a local gguf\n"
+                    "                            $JB_MODEL_API ollama|openai|llamacpp|vllm, $JB_MODEL_NAME the model to request\n"
                     "  --remote user@host ...    run on another host. see --remote with no arguments\n", a0);
 }
 
@@ -255,6 +259,7 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[ai], "--use-model") && ai + 1 < argc) {
             if (discover_pick(argv[++ai], use_model, sizeof use_model)) { fprintf(stderr, "no model matches %s. see --list-models\n", argv[ai]); return 1; }
         }
+        else if (!strcmp(argv[ai], "--model-url") && ai + 1 < argc) setenv("JB_MODEL_URL", argv[++ai], 1);   // remote brain; pick_model reads the env
         else { usage(argv[0]); return 1; }
     }
     const char *path = *use_model ? use_model : NULL;

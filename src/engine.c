@@ -1,4 +1,5 @@
 #include "engine.h"
+#include "engine_http.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,6 +18,7 @@ struct engine {
     unsigned char *banned;         // 1 for special tokens that are not end-of-generation. never sampled in a reply
     char u_pre[128], u_post[160], a_post[64];  // chat template pieces around a user turn and after an assistant turn
     int thinking;                              // vocab has <think>: a thinking model. we open each reply with an empty block
+    http_engine *http;                         // set when URL-backed: every public call below routes to the http engine
 };
 
 // a thinking model has <think> and </think> as single tokens. its non-thinking mode is an empty block at the start of the reply,
@@ -108,12 +110,23 @@ static engine *open_model(struct llama_model *m, int n_ctx, int n_threads) {
     return e;
 }
 
+// URL-backed engine: an allocation that carries only an http backend; every public call routes to it.
+engine *engine_open_url(const char *url) {
+    engine *e = calloc(1, sizeof *e);
+    if (!e) return NULL;
+    e->http = http_open(url);
+    if (!e->http) { free(e); return NULL; }
+    return e;
+}
+
 void engine_close(engine *e) {
     if (!e) return;
+    if (e->http) { http_close(e->http); free(e); return; }
     llama_free(e->ctx); llama_model_free(e->model); free(e->cur); free(e->banned); free(e);
 }
 
 int engine_chat(engine *e, const char *system, const char *user, char *out, size_t cap) {
+    if (e->http) { (void)user; snprintf(out, cap, "%s", system ? system : ""); return (int)strlen(out); }  // seed keeps only the system part
     struct llama_chat_message msgs[2]; int n = 0;
     if (system) { msgs[n].role = "system"; msgs[n].content = system; n++; }
     msgs[n].role = "user"; msgs[n].content = user; n++;
@@ -123,6 +136,7 @@ int engine_chat(engine *e, const char *system, const char *user, char *out, size
 }
 
 int engine_turn_user(engine *e, const char *text) {
+    if (e->http) return http_turn_user(e->http, text);
     size_t n = strlen(e->u_pre) + strlen(text) + strlen(e->u_post) + 1;
     char *buf = malloc(n);
     snprintf(buf, n, "%s%s%s", e->u_pre, text, e->u_post);
@@ -130,9 +144,10 @@ int engine_turn_user(engine *e, const char *text) {
     free(buf);
     return rc;
 }
-int engine_turn_end(engine *e) { return engine_feed(e, e->a_post); }
-const char *engine_template_piece(engine *e, int i) { return i == 0 ? e->u_pre : i == 1 ? e->u_post : e->a_post; }
-int engine_thinking(engine *e) { return e->thinking; }
+int engine_turn_end(engine *e) { return e->http ? http_turn_end(e->http) : engine_feed(e, e->a_post); }
+// "\x01" never appears in the seed text, so jb.c's "keep only the system part" cut is a no-op on the http path.
+const char *engine_template_piece(engine *e, int i) { return e->http ? "\x01" : i == 0 ? e->u_pre : i == 1 ? e->u_post : e->a_post; }
+int engine_thinking(engine *e) { return e->http ? 0 : e->thinking; }
 
 // decode one batch of tokens, in n_batch sized chunks
 static int decode(engine *e, llama_token *t, int n) {
@@ -145,6 +160,7 @@ static int decode(engine *e, llama_token *t, int n) {
 }
 
 int engine_feed(engine *e, const char *text) {
+    if (e->http) return http_feed(e->http, text);
     int len = strlen(text);
     int n = -llama_tokenize(e->vocab, text, len, NULL, 0, e->pos == 0, true);
     if (n <= 0) return -1;
@@ -192,6 +208,7 @@ static llama_token pick(engine *e, struct llama_sampler *chain, struct llama_sam
 }
 
 int engine_gen(engine *e, const char *gbnf, float temp, unsigned seed, int max_tok, char *out, size_t cap) {
+    if (e->http) return http_gen(e->http, gbnf, temp, seed, max_tok, out, cap);
     struct llama_sampler *gram = NULL;
     if (gbnf) {
         gram = llama_sampler_init_grammar(e->vocab, gbnf, "root");
@@ -227,10 +244,11 @@ int engine_gen(engine *e, const char *gbnf, float temp, unsigned seed, int max_t
     return used == (size_t)-1 ? -1 : (int)used;
 }
 
-int  engine_pos(engine *e) { return e->pos; }
-int  engine_last_gen_tokens(engine *e) { return e->last_gen; }
-int  engine_last_rejects(engine *e) { return e->last_rejects; }
+int  engine_pos(engine *e) { return e->http ? http_pos(e->http) : e->pos; }
+int  engine_last_gen_tokens(engine *e) { return e->http ? http_last_gen(e->http) : e->last_gen; }
+int  engine_last_rejects(engine *e) { return e->http ? 0 : e->last_rejects; }
 void engine_rewind(engine *e, int pos) {
+    if (e->http) { http_rewind(e->http, pos); return; }
     if (pos >= e->pos) return;
     llama_memory_t mem = llama_get_memory(e->ctx);
     bool ok = llama_memory_seq_rm(mem, 0, pos, -1);
@@ -239,4 +257,4 @@ void engine_rewind(engine *e, int pos) {
     e->pos = pos;
 }
 
-int engine_kv_pos(engine *e) { return (int)llama_memory_seq_pos_max(llama_get_memory(e->ctx), 0) + 1; }
+int engine_kv_pos(engine *e) { return e->http ? http_pos(e->http) : (int)llama_memory_seq_pos_max(llama_get_memory(e->ctx), 0) + 1; }

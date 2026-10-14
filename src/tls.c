@@ -9,6 +9,7 @@
 #include "mbedtls/ctr_drbg.h"
 #include "mbedtls/x509_crt.h"
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <netdb.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -26,6 +27,42 @@ static int tls_connect(const char *host, const char *port, int ms) {
         int e = 0; socklen_t el = sizeof e; getsockopt(fd, SOL_SOCKET, SO_ERROR, &e, &el); if (e) { close(fd); return -1; } }
     else if (rc < 0) { close(fd); return -1; }
     fcntl(fd, F_SETFL, fl); return fd;
+}
+
+// plaintext HTTP/1.0, same contract as jb_https. for a local model endpoint (ollama on http://localhost), no TLS.
+int jb_http(const char *method, const char *url, const char *body, const char *ctype, char *out, unsigned long cap) {
+    if (strncmp(url, "http://", 7)) return -1;
+    char host[256], port[8] = "80", path[1024] = "/";
+    const char *p = url + 7, *slash = strchr(p, '/');
+    size_t hl = slash ? (size_t)(slash - p) : strlen(p);
+    if (hl >= sizeof host) return -1;
+    memcpy(host, p, hl); host[hl] = 0;
+    if (slash) snprintf(path, sizeof path, "%s", slash);
+    char *colon = strchr(host, ':'); if (colon) { *colon = 0; snprintf(port, sizeof port, "%s", colon + 1); }
+
+    int fd = tls_connect(host, port, 15000);
+    if (fd < 0) return -1;
+    struct timeval tv = { 300, 0 }; setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);  // a slow model, not a hung one
+    int status = -1;
+    char req[2048]; int rl;
+    if (body) rl = snprintf(req, sizeof req, "%s %s HTTP/1.0\r\nHost: %s\r\nContent-Type: %s\r\nContent-Length: %zu\r\nConnection: close\r\n\r\n",
+                            method, path, host, ctype ? ctype : "application/json", strlen(body));
+    else rl = snprintf(req, sizeof req, "%s %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n", method, path, host);
+    if (rl < 0 || rl >= (int)sizeof req) { close(fd); return -1; }
+    for (int off = 0; off < rl; ) { ssize_t w = write(fd, req + off, rl - off); if (w <= 0) { if (w < 0 && errno == EINTR) continue; close(fd); return -1; } off += w; }
+    if (body) for (size_t off = 0, bl = strlen(body); off < bl; ) { ssize_t w = write(fd, body + off, bl - off); if (w <= 0) { if (w < 0 && errno == EINTR) continue; close(fd); return -1; } off += w; }
+
+    char *resp = malloc(1 << 16); size_t n = 0, rcap = 1 << 16; const size_t RMAX = 1 << 20;
+    if (!resp) { close(fd); return -1; }
+    for (;;) { ssize_t r = read(fd, resp + n, rcap - n - 1); if (r < 0) { if (errno == EINTR) continue; break; } if (r == 0) break; n += r;
+               if (n + 1 >= rcap) { if (rcap >= RMAX) break; char *nr = realloc(resp, rcap *= 2); if (!nr) break; resp = nr; } }
+    resp[n] = 0;
+    sscanf(resp, "HTTP/%*s %d", &status);
+    char *hdrend = strstr(resp, "\r\n\r\n");
+    snprintf(out, cap, "%s", hdrend ? hdrend + 4 : resp);
+    free(resp);
+    close(fd);
+    return status;
 }
 
 // common CA bundle locations. if one loads, we verify the certificate; if none, we proceed unverified (like curl -k).

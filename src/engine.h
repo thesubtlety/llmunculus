@@ -7,6 +7,8 @@ typedef struct engine engine;
 engine *engine_open_file(const char *path, int n_ctx, int n_threads);
 // the model stored inside our own executable, mapped in place. NULL if there is none.
 engine *engine_open_embedded(int n_ctx, int n_threads);
+// a remote model over http(s): ollama or an openai-compatible endpoint. NULL on a bad url.
+engine *engine_open_url(const char *url);
 void    engine_close(engine *);
 
 // wrap a system+user message in the model's chat template. returns length or -1.

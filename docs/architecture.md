@@ -19,13 +19,16 @@ user task
 
 Facts travel as text. After each task the KV cache rewinds to the system prompt; facts and a short history carry to the next. Deterministic paths (--explore, --report, --remote) skip the model entirely.
 
+The model runs locally (embedded or discovered GGUF) or on a remote http endpoint — ollama or an openai-compatible server, chosen by `JB_MODEL_URL`. The loop is identical either way; a remote endpoint replays the conversation as a messages array since it holds no state. See 18-remote-model.md.
+
 ## parts
 
 | file | job |
 |---|---|
 | jb.c | args, system prompt, `--run` dispatch to the child, one task or the REPL |
 | loop.c | state machine above. `session` carries facts and history between tasks |
-| engine.c | llama.cpp wrapper. load, feed, sample, grammar |
+| engine.c | llama.cpp wrapper. load, feed, sample, grammar. routes to engine_http.c when URL-backed |
+| engine_http.c | remote model backend behind engine.h: ollama/openai chat endpoint, GBNF or JSON schema per flavor |
 | grammar.c | GBNF strings, one per step |
 | parse.c | pull NEED, FACT, code block out of text |
 | runner.c | spawn self `--run`, pipe C source in, collect output, timeout, cap |
@@ -55,6 +58,7 @@ Facts travel as text. After each task the KV cache rewinds to the system prompt;
 typedef struct engine engine;
 engine *engine_open_file(const char *path, int n_ctx, int n_threads);
 engine *engine_open_embedded(int n_ctx, int n_threads);   // the model inside our own exe
+engine *engine_open_url(const char *url);                 // remote model: ollama or openai-compatible, over http
 int     engine_chat(engine *, const char *system, const char *user, char *out, size_t cap);
 int     engine_turn_user(engine *, const char *text);     // incremental chat turns, template-derived
 int     engine_turn_end(engine *);

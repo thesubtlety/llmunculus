@@ -1,6 +1,6 @@
 # 18 remote model
 
-Status: Phase 1 built and verified against an Ollama-shaped stub server. No real model served over HTTP from this box yet; the user's Ollama/org endpoint is the first live run.
+Status: built and verified against Ollama- and OpenAI-shaped stub servers, including schema mode. No real model served over HTTP from this box yet; the first live run is the user's Ollama/org endpoint.
 
 ## what it is
 
@@ -42,18 +42,18 @@ The local path's reliability on a small model comes from GBNF: the sampler masks
 |---|---|---|
 | `llamacpp` | `/v1/chat/completions` | `grammar` = the GBNF, verbatim |
 | `vllm` | `/v1/chat/completions` | `guided_grammar` = the GBNF |
-| `ollama` | `/api/chat` | none in Phase 1 (schema-free); Phase 2 adds a JSON-Schema twin |
-| `openai` | `/v1/chat/completions` | none |
+| `ollama` | `/api/chat` | a JSON Schema in `format` (schema mode), else schema-free |
+| `openai` | `/v1/chat/completions` | a JSON Schema in `response_format`, else schema-free |
 
-Ollama has no GBNF — only JSON Schema. Phase 1 runs it schema-free and leans on the prompts, which already spell out the formats (`'NEED: …' / 'DO: …'`, a `\`\`\`c` example block, "Code only.") plus the retry-with-rising-temp in `step()`. So:
+llama.cpp and vLLM take the GBNF as-is, so the grammar guarantees hold unchanged.
 
-- GBNF backends (llama.cpp, vLLM) get full grammar guarantees now.
-- Ollama with a capable model (a 30B, an org model) holds format well enough schema-free.
-- Ollama with a small model (the same 3B) is less reliable without the grammar crutch. Phase 2 fixes this with per-grammar JSON schemas and a JSON reply parser.
+Ollama and a generic OpenAI endpoint have no GBNF, only JSON Schema. For the grammars whose structure matters — the plan (`NEED/DO`), the code block, the verdict, the observation, yes/no — the engine sends a schema and then **converts the JSON reply back into the exact line text the parsers in `parse.c` already read** (`DO: …`, a `\`\`\`c` fence, `FACT`/`FIX: …`, `yes`). The loop and the parsers never learn a remote model was used. This all lives in `engine_http.c`; the grammar is identified by pointer (`gbnf == G_CODE`). `G_LINES` (facts squash) and `G_ANSWER` (free text) stay schema-free: the first would corrupt the facts list if mis-shaped, the second is a plain sentence.
+
+So: a capable model (a 30B, an org model) holds format even schema-free; a small model gets the schema as a hard constraint, close to the local GBNF guarantee. `JB_MODEL_SCHEMA=0` turns schema mode off and falls back to prompt-only.
 
 ## limits
 
 - Data leaves the box: the host's questions and the generated-code context go to the endpoint. Fine over Tailscale to your own server; local-only mode never sends anything off-box.
 - One endpoint, no failover or retry on a 5xx. `JB_DEBUG_HTTP=1` prints the status and body on a non-200.
-- Phase 1 Ollama on a small model is best-effort on output format.
-- Verified with a stub `/api/chat` server: URL backend selected, valid JSON requests, the messages array growing across turns, the reply parsed, and the full plan → code → tcc compile → run → fact → done loop. First real model-over-HTTP run is the user's.
+- Schema mode assumes the endpoint preserves JSON property order (kind before text); Ollama and OpenAI structured outputs do.
+- Verified with stub `/api/chat` and `/v1/chat/completions` servers: URL backend selected, valid JSON requests with the `grammar` or `format`/`response_format` field, the messages array growing across turns, every reply shape reformatted correctly (unit-tested: plans, NONE, code fences, FIX, observe, yes/no, escaped and `\u` text), and the full plan → code → tcc compile → run → fact → done loop. First real model-over-HTTP run is the user's.

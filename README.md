@@ -18,7 +18,7 @@ llmunculus --report syslog "is / over 90% full"           # report + exit code
 llmunculus --remote user@host --explore                   # profile a box over ssh
 ```
 
-Also: `--read-only` (refuse writes), `--json`, `--selftest`, `--list-models` and `--use-model` (pick a downloaded model), a REPL with no args.
+Also: `--read-only` (refuse writes), `--json`, `--selftest`, `--list-models` and `--use-model` (pick a downloaded model), `--model-url` (use a remote model: Ollama or an OpenAI-compatible endpoint), a REPL with no args.
 Flags and env vars: [`docs/usage.md`](docs/usage.md).
 
 ## Build

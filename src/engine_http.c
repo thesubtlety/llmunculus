@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "engine_http.h"
+#include "grammar.h"   // identify the step's grammar by pointer, to pick its JSON schema and reformat the reply
 
 extern int jb_http (const char *method, const char *url, const char *body, const char *ctype, char *out, unsigned long cap);
 extern int jb_https(const char *method, const char *url, const char *body, const char *ctype, char *out, unsigned long cap);
@@ -107,6 +108,80 @@ static int json_str_after(const char *at, char *out, size_t cap) {
 
 static int words(const char *s) { int n = 0, in = 0; for (; *s; s++) { if (*s == ' ' || *s == '\n' || *s == '\t') in = 0; else if (!in) { in = 1; n++; } } return n; }
 
+// phase 2: ollama and generic openai endpoints have no GBNF, only JSON Schema. for the grammars whose structure
+// matters, send a schema and convert the JSON reply back into the exact line format the loop's parsers expect, so
+// the loop and parse.c stay unchanged. llama.cpp/vllm keep their GBNF (better) and never reach here.
+#define PLAN_SCHEMA(mn, mx) "{\"type\":\"object\",\"properties\":{\"steps\":{\"type\":\"array\",\"minItems\":" mn ",\"maxItems\":" mx \
+    ",\"items\":{\"type\":\"object\",\"properties\":{\"kind\":{\"type\":\"string\",\"enum\":[\"NEED\",\"DO\"]},\"text\":{\"type\":\"string\"}}," \
+    "\"required\":[\"kind\",\"text\"]}}},\"required\":[\"steps\"]}"
+
+static const char *schema_for(const char *g) {
+    if (g == G_PLAN_ONE)  return PLAN_SCHEMA("1", "1");
+    if (g == G_PLAN)      return PLAN_SCHEMA("1", "3");
+    if (g == G_PLAN_NONE) return PLAN_SCHEMA("0", "3");
+    if (g == G_CODE)      return "{\"type\":\"object\",\"properties\":{\"code\":{\"type\":\"string\"}},\"required\":[\"code\"]}";
+    if (g == G_VERDICT)   return "{\"type\":\"object\",\"properties\":{\"verdict\":{\"type\":\"string\",\"enum\":[\"FACT\",\"FIX\"]},\"fix\":{\"type\":\"string\"}},\"required\":[\"verdict\"]}";
+    if (g == G_OBSERVE)   return "{\"type\":\"object\",\"properties\":{\"kind\":{\"type\":\"string\",\"enum\":[\"FACT\",\"FIX\"]},\"text\":{\"type\":\"string\"}},\"required\":[\"kind\",\"text\"]}";
+    if (g == G_YESNO)     return "{\"type\":\"object\",\"properties\":{\"answer\":{\"type\":\"string\",\"enum\":[\"yes\",\"no\",\"unknown\"]}},\"required\":[\"answer\"]}";
+    return NULL;   // G_LINES, G_ANSWER, free text: schema-free, no reformat
+}
+
+static int schema_off(void) { const char *v = getenv("JB_MODEL_SCHEMA"); return v && (!strcmp(v, "0") || !strcmp(v, "off") || !strcmp(v, "no")); }
+
+// json reply for grammar g -> the line text parse.c expects. falls back to the raw json (parser then retries).
+static void reformat(const char *g, const char *j, char *out, size_t cap) {
+    char a[256], b[256];
+    if (g == G_PLAN || g == G_PLAN_ONE || g == G_PLAN_NONE) {
+        size_t o = 0; out[0] = 0;
+        for (const char *p = strstr(j, "\"kind\""); p; p = strstr(p + 6, "\"kind\"")) {   // schema order is kind then text
+            if (json_str_after(p, a, sizeof a) < 0) break;
+            const char *tp = strstr(p, "\"text\"");
+            if (!tp || json_str_after(tp, b, sizeof b) < 0) break;
+            int w = snprintf(out + o, o < cap ? cap - o : 0, "%s%s\n", strcmp(a, "DO") ? "NEED: " : "DO: ", b);
+            if (w < 0) break;
+            o += w; if (o >= cap) break;
+            p = tp;
+        }
+        if (o == 0) snprintf(out, cap, "NONE");   // empty plan -> the loop's "done/informed NONE" path
+        return;
+    }
+    if (g == G_CODE) {
+        const char *cp = strstr(j, "\"code\"");
+        int pre = snprintf(out, cap, "```c\n");
+        int n = cp ? json_str_after(cp, out + pre, (size_t)pre < cap ? cap - pre : 0) : -1;
+        if (n < 0) { snprintf(out, cap, "%s", j); return; }
+        size_t o = pre + n;
+        if (o && out[o - 1] != '\n' && o + 1 < cap) out[o++] = '\n';
+        snprintf(out + o, o < cap ? cap - o : 0, "```");
+        return;
+    }
+    if (g == G_VERDICT) {
+        const char *vp = strstr(j, "\"verdict\"");
+        if (vp && json_str_after(vp, a, sizeof a) >= 0 && !strcmp(a, "FIX")) {
+            const char *fp = strstr(j, "\"fix\"");
+            if (fp && json_str_after(fp, b, sizeof b) >= 0) { snprintf(out, cap, "FIX: %s", b); return; }
+        }
+        snprintf(out, cap, "FACT");   // FACT means "the program output is the fact", used verbatim
+        return;
+    }
+    if (g == G_OBSERVE) {
+        const char *kp = strstr(j, "\"kind\""), *tp = strstr(j, "\"text\"");
+        if (kp && tp && json_str_after(kp, a, sizeof a) >= 0 && json_str_after(tp, b, sizeof b) >= 0) {
+            snprintf(out, cap, "%s: %s", strcmp(a, "FIX") ? "FACT" : "FIX", b);
+            return;
+        }
+        snprintf(out, cap, "%s", j);
+        return;
+    }
+    if (g == G_YESNO) {
+        const char *ap = strstr(j, "\"answer\"");
+        if (ap && json_str_after(ap, a, sizeof a) >= 0) { snprintf(out, cap, "%s", a); return; }
+        snprintf(out, cap, "%s", j);
+        return;
+    }
+    snprintf(out, cap, "%s", j);
+}
+
 int http_gen(http_engine *h, const char *gbnf, float temp, unsigned seed, int max_tok, char *out, unsigned long cap) {
     (void)seed; (void)max_tok;
     sb s = {0};
@@ -118,13 +193,17 @@ int http_gen(http_engine *h, const char *gbnf, float temp, unsigned seed, int ma
         bad |= sb_raw(&s, "\",\"content\":\""); bad |= sb_json(&s, h->text[i]); bad |= sb_raw(&s, "\"}");
     }
     bad |= sb_raw(&s, "]");
+    // schema mode: ollama/openai constrain output to a JSON schema; we reformat the reply back to the line format.
+    const char *schema = (gbnf && (h->flavor == F_OLLAMA || h->flavor == F_OPENAI) && !schema_off()) ? schema_for(gbnf) : NULL;
     char tb[64];
-    if (h->flavor == F_OLLAMA) {   // ollama takes temperature under options; no GBNF (phase 2: "format" schema)
+    if (h->flavor == F_OLLAMA) {   // ollama takes temperature under options; a schema goes in "format"
         snprintf(tb, sizeof tb, ",\"options\":{\"temperature\":%.2f}", temp); bad |= sb_raw(&s, tb);
+        if (schema) { bad |= sb_raw(&s, ",\"format\":"); bad |= sb_raw(&s, schema); }
     } else {
         snprintf(tb, sizeof tb, ",\"temperature\":%.2f", temp); bad |= sb_raw(&s, tb);
         if (gbnf && h->flavor == F_LLAMACPP) { bad |= sb_raw(&s, ",\"grammar\":\""); bad |= sb_json(&s, gbnf); bad |= sb_raw(&s, "\""); }
         if (gbnf && h->flavor == F_VLLM)     { bad |= sb_raw(&s, ",\"guided_grammar\":\""); bad |= sb_json(&s, gbnf); bad |= sb_raw(&s, "\""); }
+        if (schema) { bad |= sb_raw(&s, ",\"response_format\":{\"type\":\"json_schema\",\"json_schema\":{\"name\":\"reply\",\"strict\":true,\"schema\":"); bad |= sb_raw(&s, schema); bad |= sb_raw(&s, "}}"); }
     }
     bad |= sb_raw(&s, "}");
     if (bad || !s.p) { free(s.p); out[0] = 0; return -1; }
@@ -142,9 +221,13 @@ int http_gen(http_engine *h, const char *gbnf, float temp, unsigned seed, int ma
     char *m = strstr(resp, "\"message\"");
     char *cptr = strstr(m ? m : resp, "\"content\"");
     if (!cptr) { if (getenv("JB_DEBUG_HTTP")) fprintf(stderr, "[http] no content in %.400s\n", resp); free(resp); out[0] = 0; return -1; }
-    int r = json_str_after(cptr, h->pending, sizeof h->pending);
+    char *raw = malloc(1 << 16);
+    int r = raw ? json_str_after(cptr, raw, 1 << 16) : -1;
     free(resp);
-    if (r < 0) { out[0] = 0; return -1; }
+    if (r < 0) { free(raw); out[0] = 0; return -1; }
+    if (schema) reformat(gbnf, raw, h->pending, sizeof h->pending);   // json -> the line format parse.c reads
+    else snprintf(h->pending, sizeof h->pending, "%s", raw);
+    free(raw);
     h->last_gen = words(h->pending);
     snprintf(out, cap, "%s", h->pending);
     return (int)strlen(out);

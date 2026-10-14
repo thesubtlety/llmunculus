@@ -31,6 +31,7 @@ Code comments: one line, only where the code is not obvious.
 | 15-tls.md | native HTTPS via mbedtls, jb_https, cert verification, no curl |
 | 16-qa.md | the QA review: findings across security, build and docs, and the fixes |
 | 17-discover.md | use the model the user already has: scan ollama, LM Studio, HF cache, llama.cpp, score, cache the pick |
+| 18-remote-model.md | a remote model over http: ollama or an openai-compatible endpoint instead of a local gguf, GBNF or JSON-schema per backend |
 
 Each milestone gets a numbered note as we build it: `01-inference.md`, `02-grammar.md`, ...
 A note answers: what is it, how does it work, what did we build, what broke.

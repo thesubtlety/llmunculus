@@ -5,12 +5,13 @@ llmunculus [-v] [-t seconds] [-a attempts] [--read-only] [--confirm] [--json] [-
 llmunculus --selftest [model.gguf]
 llmunculus --explore
 llmunculus --list-models
+llmunculus --model-url URL "task"
 llmunculus --remote user@host [--explore | "task"]
 ```
 
 | what | order tried |
 |---|---|
-| model | `.gguf` or `--use-model X` on the command line, `$JB_MODEL`, `model.gguf` beside the executable, the one inside it, the best fit from ollama, LM Studio, the Hugging Face cache, llama.cpp, GPT4All or Jan |
+| model | `.gguf` or `--use-model X` on the command line, `$JB_MODEL_URL` (a remote model), `$JB_MODEL`, `model.gguf` beside the executable, the one inside it, the best fit from ollama, LM Studio, the Hugging Face cache, llama.cpp, GPT4All or Jan |
 | task | command line, `/zip/task.txt` inside the executable, else a REPL |
 | system prompt | `/zip/system.txt` inside the executable, else the built-in one with the host's OS and arch |
 
@@ -18,7 +19,7 @@ Flags: `-v` logs every step to stderr. `-a N` code attempts per step, default 3.
 
 REPL commands: `/facts` `/reset` `/ctx` `/quit`.
 
-Environment: `JB_MODEL` model path. `JB_TCCMEM=dual` two-view tcc memory for hosts that refuse rwx pages. `JB_FACTS_MAX` bytes of facts before a squash. `JB_ROOT` where headers and tcc objects live, default `/zip` when embedded. `JB_DEBUG_ZIP=1` traces the embedded-member lookup. `OLLAMA_MODELS`, `HF_HOME`, `HF_HUB_CACHE`, `LLAMA_CACHE` and `TMPDIR` are honored by the model scan.
+Environment: `JB_MODEL` model path. `JB_MODEL_URL` a remote model endpoint (see below). `JB_TCCMEM=dual` two-view tcc memory for hosts that refuse rwx pages. `JB_FACTS_MAX` bytes of facts before a squash. `JB_ROOT` where headers and tcc objects live, default `/zip` when embedded. `JB_DEBUG_ZIP=1` traces the embedded-member lookup. `OLLAMA_MODELS`, `HF_HOME`, `HF_HUB_CACHE`, `LLAMA_CACHE` and `TMPDIR` are honored by the model scan.
 
 ## builds
 
@@ -42,6 +43,10 @@ make build/llmunculus SYSTEM="You are ..."                    # custom system pr
 ## models
 
 `llmunculus --list-models` lists the GGUF files other tools have downloaded, best fit first, with score, size and the name from the file header, and caches the top pick in `$TMPDIR/llmunculus-model.<uid>`. When nothing names a model the top pick is used. `--use-model X` picks a different one: `X` is its number in that list, a fragment of its name or path, or a path to any `.gguf`. A bare `.gguf` path as the first argument works too. Delete the cache file or rerun `--list-models` after downloading something new. See 17-discover.md.
+
+## remote model
+
+`--model-url URL` (or `$JB_MODEL_URL`) calls a chat endpoint instead of loading a local GGUF: Ollama, or an OpenAI-compatible server. `$JB_MODEL_API` picks the shape — `ollama` (default), `openai`, `llamacpp`, `vllm` — and `$JB_MODEL_NAME` is the model to request (Ollama needs it). llama.cpp and vLLM get the same GBNF grammars as the local model; Ollama and `openai` get a JSON schema and the reply is reformatted back, `$JB_MODEL_SCHEMA=0` to disable. `$JB_DEBUG_HTTP=1` prints the status and body on a non-200. Example: `JB_MODEL_URL=http://host:11434 JB_MODEL_NAME=qwen3-coder:30b llmunculus "is / over 90% full"`. See 18-remote-model.md.
 
 ## explore
 

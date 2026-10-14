@@ -40,6 +40,7 @@ static void walk(const char *dir, int depth, int any_ext) {
     struct dirent *e;
     while ((e = readdir(d)) && ncands < MAXC) {
         if (e->d_name[0] == '.') continue;
+        if (strstr(e->d_name, "-partial")) continue;   // ollama's half-downloaded blob: valid header, truncated weights
         char p[1200]; snprintf(p, sizeof p, "%s/%s", dir, e->d_name);
         struct stat st; if (stat(p, &st)) continue;
         if (S_ISDIR(st.st_mode)) { if (depth > 0) walk(p, depth - 1, any_ext); continue; }
